@@ -23,37 +23,43 @@ To find the broadest number of matches possible, the script compares your local 
 
 to get as many matches based on identifiers as possible.  It then adds the NLM Unique ID to your Alma data, and uses this to match against your Docline holdings, (ignoring the "NLM_" prefix)
 
-##Process
+## Process
 
 install the Python libraries  with the requirements file:
 - python pip install -r requirements.txt
 
 You'll also need to specify local data that at Tufts was determined to be fixed in the Docline data in the secrets_local/secrets_local.py
-you can run the script:
-- python docline.py
-There are two prompts:  1 lets you determine whether you want the script to downline the latest serials file from NLM, and
+you can run the script with the following command:
+- put your Docline holdings from your Docline account in the Docline folder.  This should be a CSV
+- put an Analytics file conforming to the format in Alma Analytics at "/shared/Community/Reports/Institutions/Tufts University/Journals for NLM-Docline"
+- run command
+  - python docline.py
+
+- There are two prompts that require a selection:  1 lets you determine whether you want the script to downline the latest serials file from NLM, and
 what folder to put this file in if you have a local copy
 
-and whether you want to compare/update: print, electronic, or both
+- and whether you want to compare/update: print, electronic, or both
 
-Your local Docline holdings should be in the
+
 ## Output
+
+
 
 The process finally outputs 6 reports that you can review and decide how to upload them:
 
 - deleted from ALma in docline
-  - delete
+  - DELETE action
+  - include these in your aggregated upload file
 - in Alma not in DOcline
-  - add
+  - ADD action
+  - include these in your aggregated upload file
 - in Docline only
-  - you may want to keep these or at least examine them
-they can be left out of ingest because they'll just stay
-full match between alma and docline on NLM Unique ID, all holdings fields, and all ranges
-there are none of these now
-these could be ignored
-match on NLM Unique ID and hodlings format, but different range or other holding data
-there are two sets here
-the Docline data
-delete
-the alma data
-add
+  - you may want to keep these or at least examine them.  If you decide to keep them you can leave them out
+- full match between alma and docline on NLM Unique ID, all holdings fields, and all ranges
+  - these can also be ignored because 
+- match on NLM Unique ID and holdings format, but different range or other holding data
+  - there are two sets here:
+    - the Docline data
+      - DELETE action, before the incoming Alma data
+	- the Alma data
+	  - ADD action, after the previous
