@@ -17,7 +17,12 @@ from bs4 import BeautifulSoup
 import glob
 
 
-def getNLMData():
+def parse_xml_chunked(file_path, tag):
+    for event, elem in ET.iterparse(file_path, events=("start", "end")):
+        if event == "end" and elem.tag == tag:
+            yield elem
+            elem.clear()
+def getNLMData(nlm_choice):
     #43-366
     start_time = time.time()
     filename = ""
@@ -41,7 +46,7 @@ def getNLMData():
         full_filename = oDir + "/" + filename
         mrc_output = open(oDir + "/" + filename, "wb")
         mrc_output.write(full_nlm_serials_data_mrc.content)
-    else:
+    elif nlm_choice == "2":
 
         files = glob.glob('NLM/*', recursive = True)
 
@@ -53,118 +58,114 @@ def getNLMData():
 
 
 
+    if nlm_choice == "1" or nlm_choice == "2":
 
-    def parse_xml_chunked(file_path, tag):
-        for event, elem in ET.iterparse(file_path, events=("start", "end")):
-            if event == "end" and elem.tag == tag:
-                yield elem
-                elem.clear()
-    #open text file in read mode
+        #open text file in read mode
 
-    csv_data = []
-    csv_headers = ["Title", "NLM_Unique_ID", "OCLC_Number", "Print_ISSN", "Electronic_ISSN", "ISSN"]
+        csv_data = []
+        csv_headers = ["Title", "NLM_Unique_ID", "OCLC_Number", "Print_ISSN", "Electronic_ISSN", "ISSN"]
 
-    nlm_df = pd.DataFrame(columns=csv_headers)
-    with open(full_filename, 'rb') as fh:
-        reader = MARCReader(fh, to_unicode=True, force_utf8=True)
-        x = 0
+        nlm_df = pd.DataFrame(columns=csv_headers)
+        with open(full_filename, 'rb') as fh:
+            reader = MARCReader(fh, to_unicode=True, force_utf8=True)
+            x = 0
 
-        for record in reader:
+            for record in reader:
 
-            #print(record['245']['a'])
+                #print(record['245']['a'])
 
-            title = record['245']['a']
-            title = title.encode('utf-8').decode()
-            nlm_unique_id = record['001'].value()
-            oclc_number = "None"
-            print_issn = "None"
-            electronic_issn = "None"
-            issn = "None"
+                title = record['245']['a']
+                title = title.encode('utf-8').decode()
+                nlm_unique_id = record['001'].value()
+                oclc_number = "None"
+                print_issn = "None"
+                electronic_issn = "None"
+                issn = "None"
 
 
-            # print("NLM Unique ID" + nlm_unique_id)
-            for oclc_035_tag in record.get_fields('035'):
-                # print("got into oclc loop")
-                # print(oclc_035_tag['a'])
-                dict = oclc_035_tag.subfields_as_dict()
-                oclc_list = []
-                for key, value in dict.items():
+                # print("NLM Unique ID" + nlm_unique_id)
+                for oclc_035_tag in record.get_fields('035'):
+                    # print("got into oclc loop")
+                    # print(oclc_035_tag['a'])
+                    dict = oclc_035_tag.subfields_as_dict()
+                    oclc_list = []
+                    for key, value in dict.items():
 
-                    for each_value in value:
+                        for each_value in value:
 
-                        if re.search("\(OCoLC\)", each_value):
-                            oclc_list.append(re.sub(r'\(OCoLC\)\s*(\d+)', r'\1', each_value))
-                        #     if y == 0:
-                        #         oclc_number = ""
-                        #         print("NLM Unique ID" + nlm_unique_id)
-                        #         print("oclc number match")
-                        #         oclc_number = re.sub(r'\(OCoLC\)\s*(\d+)', r'\1', each_value)
-                        #         print("oclc number parsed" + oclc_number)
-                        #     else:
-                        #         print("NLM Unique ID" + nlm_unique_id)
-                        #         print("oclc number match")
-                        #         oclc_number += oclc_number + ";" + re.sub(r'\(OCoLC\)\s*(\d+)', r'\1', each_value)
-                        #         print("oclc number parsed" + oclc_number)
-                        # y += 1
-                #dedupe
-                oclc_list = list(dict.fromkeys(oclc_list))
-                oclc_number = ";".join(oclc_list)
+                            if re.search("\(OCoLC\)", each_value):
+                                oclc_list.append(re.sub(r'\(OCoLC\)\s*(\d+)', r'\1', each_value))
+                            #     if y == 0:
+                            #         oclc_number = ""
+                            #         print("NLM Unique ID" + nlm_unique_id)
+                            #         print("oclc number match")
+                            #         oclc_number = re.sub(r'\(OCoLC\)\s*(\d+)', r'\1', each_value)
+                            #         print("oclc number parsed" + oclc_number)
+                            #     else:
+                            #         print("NLM Unique ID" + nlm_unique_id)
+                            #         print("oclc number match")
+                            #         oclc_number += oclc_number + ";" + re.sub(r'\(OCoLC\)\s*(\d+)', r'\1', each_value)
+                            #         print("oclc number parsed" + oclc_number)
+                            # y += 1
+                    #dedupe
+                    oclc_list = list(dict.fromkeys(oclc_list))
+                    oclc_number = ";".join(oclc_list)
 
-            #     print("OCLC list" + oclc_number)
-            # if x == 50:
-            #     sys.exit()
+                #     print("OCLC list" + oclc_number)
+                # if x == 50:
+                #     sys.exit()
 
-            # except:
-            #     oclc_number = "None"
+                # except:
+                #     oclc_number = "None"
 
-            try:
-                for record_022 in record.get_fields('022'):
-                    issn = record_022['a']
-                    #print("got into issn for loop")
-                    #print(record_022)
-                    print_or_electronic = "None"
-                    try:
-                        print_or_electronic = record_022['7']
-                    except:
-                        print_or_electronic = "None"
-                    if 'Print' in print_or_electronic:
-                        print_issn = record_022['a']
-                    elif 'Electronic' in print_or_electronic:
-                        electronic_issn = record_022['a']
-                    else:
-                        print_or_electronic = "None"
+                try:
+                    for record_022 in record.get_fields('022'):
                         issn = record_022['a']
-            except:
-                issn = None
+                        #print("got into issn for loop")
+                        #print(record_022)
+                        print_or_electronic = "None"
+                        try:
+                            print_or_electronic = record_022['7']
+                        except:
+                            print_or_electronic = "None"
+                        if 'Print' in print_or_electronic:
+                            print_issn = record_022['a']
+                        elif 'Electronic' in print_or_electronic:
+                            electronic_issn = record_022['a']
+                        else:
+                            print_or_electronic = "None"
+                            issn = record_022['a']
+                except:
+                    issn = None
 
 
-            csv_data.append([title, nlm_unique_id, oclc_number, print_issn, electronic_issn, issn])
-            nlm_df = pd.concat([nlm_df, pd.DataFrame({"Title": title, "NLM_Unique_ID": nlm_unique_id, "OCLC_Number": oclc_number, "Print_ISSN": print_issn, "Electronic_ISSN": electronic_issn, "ISSN": issn}, index=[0])])
-            if x % 1000 == 0:
-                print(x)
+                csv_data.append([title, nlm_unique_id, oclc_number, print_issn, electronic_issn, issn])
+                nlm_df = pd.concat([nlm_df, pd.DataFrame({"Title": title, "NLM_Unique_ID": nlm_unique_id, "OCLC_Number": oclc_number, "Print_ISSN": print_issn, "Electronic_ISSN": electronic_issn, "ISSN": issn}, index=[0])])
+                if x % 1000 == 0:
+                    print(x)
 
-                print(csv_data[x])
-            x += 1
+                    print(csv_data[x])
+                x += 1
 
 
 
-    csv_filename = "Processing/journal_data.csv"
-    with open(csv_filename, encoding='utf-8', mode="w", newline="\n") as csv_file:
-        writer = csv.writer(csv_file, delimiter='\t')
-        writer.writerow(csv_headers)
-        writer.writerows(csv_data)
-    #log_file = open("Output/Execution time of docline script.txt", "w+")
-    #first_time = time.time()
-    #print("--- %s minutes to complete MRC NLM transformation ---\n" % ((first_time - start_time)/60))
-    #
-    #log_file.write("--- %s minutes to complete MRC NLM transformation ---\n" % (first_time - start_time))
-    # #
-    #
-    #
-    # print(f"CSV data has been written to {csv_filename}")
-    #
-    #
-    #
+        csv_filename = "Processing/journal_data.csv"
+        with open(csv_filename, encoding='utf-8', mode="w", newline="\n") as csv_file:
+            writer = csv.writer(csv_file, delimiter='\t')
+            writer.writerow(csv_headers)
+            writer.writerows(csv_data)
+        #log_file = open("Output/Execution time of docline script.txt", "w+")
+        #first_time = time.time()
+        #print("--- %s minutes to complete MRC NLM transformation ---\n" % ((first_time - start_time)/60))
+        #
+        #log_file.write("--- %s minutes to complete MRC NLM transformation ---\n" % (first_time - start_time))
+        # #
+        #
+        #
+        # print(f"CSV data has been written to {csv_filename}")
+        #
+        #
+        #
 
 def getAnalyticsData():
     # # files = glob.glob('Analytics/*', recursive = True)
@@ -511,7 +512,7 @@ def propagate_nlm_unique_id_and_libid_values(df_d):
     return df_d
 
 
-def prepare(alma_nlm_merge_df, docline_df):
+def prepare(alma_nlm_merge_df, docline_df, print_or_electronic_choice):
     alma_nlm_merge_df['nlm_unique_id'] = alma_nlm_merge_df['nlm_unique_id'].astype(str)
 
 

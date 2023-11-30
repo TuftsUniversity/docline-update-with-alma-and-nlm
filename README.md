@@ -1,8 +1,7 @@
 # docline-update-with-alma-and-nlm
 
 ## Author
-- Henry Steele TTS Library Technology Service at Tufts University
-- 2023
+- Henry Steele TTS Library Technology Service at Tufts University - 2023
 
 ## Reason and Objective
 Tufts like many places with medical libraries faced the challenge of updating their journal holdings in Docline, per instructions in the [Docline User Manual](https://www.nlm.nih.gov/docline/docline_manual/DOCLINE_manual.pdf).   However these instructions seem to assume librarians are going through their holdings one by one to add or update journals from their local collection that conform to Docline ingest standards, and fall within the range of journals that Docline considers to be medical or medical-adjacent
@@ -16,7 +15,8 @@ In order to find out what methods would work, I needed to compare the three data
 - local docline holdings for our institution, exportable from Docline
 - the total list of XML serials.  Choose the latest export from this  [serial XML file release page](https://ftp.nlm.nih.gov/projects/serfilelease/)
 - export from Alma Analtyics.  I have put the report I use to get all our serials data from e inventory at /shared/Community/Reports/Institutions/Tufts University/Journals for NLM-Docline
-
+  - Note I have also put in this folder a second report we use to filter out e journals that are not permitted for ILL,
+    but you may have your own way of doing this at your institution.
 To find the broadest number of matches possible, the script compares your local journal holdings against NLM data by-
 - OCLC Number`
 - ISSN

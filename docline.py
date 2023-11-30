@@ -15,8 +15,8 @@ import csv
 import io
 from bs4 import BeautifulSoup
 import glob
-
-from scripts import functions
+sys.path.append('scripts/')
+from functions import *
 
 oDir = "./Output"
 if not os.path.isdir(oDir) or not os.path.exists(oDir):
@@ -40,7 +40,7 @@ if not os.path.isdir(aDir) or not os.path.exists(aDir):
 ## and also ingest Alma Analytics data, either from downloaded
 ## file or via API at target set in configs
 
-nlm_choice = input("Do you want to have the program ingest the latest NLM from the web, or do you have a local copy in the 'NLM' folder you would like it to use?  Type the number next to your choice.\n\t1-Retrive for me\n\t2-I have a local copy\nChoice:")
+nlm_choice = input("Do you want to have the program ingest the latest NLM from the web, or do you have a local copy in the 'NLM' folder you would like it to use?  Type the number next to your choice.\n\t1-Retrive for me\n\t2-I have a local copy\n\t3-I've processed it already and it's in Processing/journal_data.csv\nChoice:")
 
 input("Download your local version of the Analytics all journals in the format at \"/shared/Community/Reports/Institutions/Tufts University\".  Put this in the \"Analytics/\" folder in this directory.\nPress any key to continue")
 #analytics_choice = input("Do you want to have the program ingest the your journal data from Analytics, or do you have a local copy in the 'Analytics' folder you would like it to use?  Note that you'll have to put the path in your secrets_local file if 1.  \nType the number next to your choice.\n\t1-Retrive for me\n\t2-I have a local copy\nChoice:")
@@ -52,7 +52,7 @@ input("The Docline file will be retrieved from the \"Docline\" folder in this di
 
 # get MARC data
 
-getMARCData(nlm_choice)
+getNLMData(nlm_choice)
 # get Analytics data
 analytics_filename = getAnalyticsData()
 
@@ -71,7 +71,7 @@ alma_nlm_merge_df = convert(merged_df, docline_df)
 # prepare Docline and Alma Medical journals CSV (Docline-formatted)
 # for merging
 
-return_list = prepare(alma_nlm_merge_df, docline_df)
+return_list = prepare(alma_nlm_merge_df, docline_df, print_or_electronic_choice)
 
 alma_nlm_merge_df = return_list[0]
 existing_docline_df = return_list[1]
