@@ -48,7 +48,7 @@ def getNLMData(nlm_choice):
         mrc_output.write(full_nlm_serials_data_mrc.content)
     elif nlm_choice == "2":
 
-        files = glob.glob('NLM/*', recursive = True)
+        files = glob.glob('NLM/*.csv', recursive = True)
 
         full_filename = files[0]
 
@@ -177,7 +177,7 @@ def getAnalyticsData():
     #
     #
     #
-    files = glob.glob('Analytics/*', recursive = True)
+    files = glob.glob('Analytics/*.csv', recursive = True)
     #
     analytics_filename = files[0]
     #

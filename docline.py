@@ -62,7 +62,7 @@ merged_df = groupAndMergeAlmaAndDocline(analytics_filename)
 
 
 # convert Alma medical journals data into Docline format
-files_docline = glob.glob('Docline/*', recursive = True)
+files_docline = glob.glob('Docline/*.csv', recursive = True)
 docline_filename = files_docline[0]
 docline_df = pd.read_csv(docline_filename, engine='python')
 alma_nlm_merge_df = convert(merged_df, docline_df)
