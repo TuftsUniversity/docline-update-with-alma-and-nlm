@@ -557,10 +557,10 @@ def prepare(alma_nlm_merge_df, docline_df, print_or_electronic_choice):
 
     if print_or_electronic_choice == "1":
         alma_nlm_merge_df = alma_nlm_merge_df[alma_nlm_merge_df['holdings_format'] == 'Print']
-        docline_df = docline_df[docline_df['holdings_format'] == 'Print']
+        existing_docline_df = existing_docline_df[docline_df['holdings_format'] == 'Print']
     elif print_or_electronic_choice == "2":
         alma_nlm_merge_df = alma_nlm_merge_df[alma_nlm_merge_df['holdings_format'] == 'Electronic']
-        docline_df = docline_df[docline_df['holdings_format'] == 'Electronic']
+        existing_docline_df = existing_docline_df[docline_df['holdings_format'] == 'Electronic']
     # Convert 'embargo_period' and 'limited_retention_period' to integers
     existing_docline_df['embargo_period'] = existing_docline_df['embargo_period'].fillna(0).astype(int)
     existing_docline_df['limited_retention_period'] = existing_docline_df['limited_retention_period'].fillna(0).astype(int)
