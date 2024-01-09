@@ -430,25 +430,25 @@ def convert(merged_df, docline_df):
 
                 begin_year = re.sub(r'^[^:]*?(\d{4}).*$', r'\1', beginning)
 
-                if 'volume' in beginning:
-                    begin_volume = re.sub(r'^.*?volume\:\s+(\d+).*$', r'\1', beginning)
+                # if 'volume' in beginning:
+                #     begin_volume = re.sub(r'^.*?volume\:\s+(\d+).*$', r'\1', beginning)
 
 
                 end = coverage.split('until')[-1]
 
                 end_year = re.sub(r'^[^:]*?(\d{4}).*$', r'\1', end)
 
-                if 'volume' in end:
-                    end_volume = re.sub(r'^.*?volume\:\s+(\d+).*$', r'\1', end)
+                # if 'volume' in end:
+                #     end_volume = re.sub(r'^.*?volume\:\s+(\d+).*$', r'\1', end)
 
             elif 'from' in coverage:
 
                 beginning = coverage.split('from')[-1].strip()
                 begin_year = re.sub(r'^[^:]*?(\d{4}).*$', r'\1', beginning)
-                if 'volume' in beginning:
-                    begin_volume = re.sub(r'^.*?volume\:\s+(\d+).*$', r'\1', beginning)
-                else:
-                    begin_volume = None
+                # if 'volume' in beginning:
+                #     begin_volume = re.sub(r'^.*?volume\:\s+(\d+).*$', r'\1', beginning)
+                # else:
+                #     begin_volume = None
 
 
 
@@ -460,8 +460,8 @@ def convert(merged_df, docline_df):
                 'serial_title': row['Title_x'],
                 'nlm_unique_id': row['NLM_Unique_ID'],
                 'holdings_format': row['Electronic or Physical'],
-                'begin_volume': begin_volume,
-                'end_volume': end_volume,
+                'begin_volume': '',
+                'end_volume': '',
                 'begin_year': begin_year,
                 'end_year': end_year,
                 'issns': row['ISSN_x'].replace(';', ','),
