@@ -399,7 +399,7 @@ def convert(merged_df, docline_df):
             'begin_year': '',
             'end_year': '',
             'issns': row['ISSN_x'].replace(';', ','),
-            'currently_received': 'No' if 'until' in str(row['Coverage Information Combined']) else 'Yes',
+            'currently_received': 'No', #if 'until' in str(row['Coverage Information Combined']) else 'Yes',
             'retention_policy': secrets_local.retention_policy,
             'limited_retention_period': secrets_local.limited_retention_period,
             'embargo_period': secrets_local.embargo_period,
@@ -465,7 +465,7 @@ def convert(merged_df, docline_df):
                 'begin_year': begin_year,
                 'end_year': end_year,
                 'issns': row['ISSN_x'].replace(';', ','),
-                'currently_received': 'No' if 'until' in str(row['Coverage Information Combined']) else 'Yes',
+                'currently_received': 'No', #if 'until' in str(row['Coverage Information Combined']) else 'Yes',
                 'retention_policy': secrets_local.retention_policy,
                 'limited_retention_period': secrets_local.limited_retention_period,
                 'embargo_period': secrets_local.embargo_period,
@@ -586,6 +586,47 @@ def removeNA(string):
     string = "; ".join(list)
 
     return(string)
+def merge_intervals_optimized(df):
+    """
+    An optimized function to merge overlapping intervals for the entire dataframe.
+    """
+    # Sort the dataframe by nlm_unique_id and begin_year
+    #df.sort_values(by=['nlm_unique_id', 'begin_year'], inplace=True)
+
+    # Replace NaN in end_year with a large number to represent 'indefinite'
+    df['end_year'].fillna(float('inf'), inplace=True)
+
+    merged_intervals = []
+    current_start = current_end = None
+    current_id = None
+    currently_received = "No"
+    for index, row in df.iterrows():
+        if row['end_year'] > 3000:
+            currently_received = "Yes"
+            df['currently_received'] = currently_received
+        else:
+            df['currently_received'] = "No"
+        if row['nlm_unique_id'] != current_id:
+            # Save the previous interval if it exists
+            if current_id is not None:
+                merged_intervals.append([current_id, current_start, None if current_end == float('inf') else current_end])
+            # Start a new interval
+            current_id, current_start, current_end = row['nlm_unique_id'], row['begin_year'], row['end_year']
+        else:
+            # If the current interval overlaps with the ongoing one, merge them
+            if row['begin_year'] <= current_end:
+                current_end = max(current_end, row['end_year'])
+            else:
+                # Save the previous interval and start a new one
+                merged_intervals.append([current_id, current_start, None if current_end == float('inf') else current_end])
+                current_start, current_end = row['begin_year'], row['end_year']
+
+    # Add the last interval
+    merged_intervals.append([current_id, current_start, None if current_end == float('inf') else current_end])
+
+    # Create a DataFrame from the merged intervals
+    merged_df = pd.DataFrame(merged_intervals, columns=['nlm_unique_id', 'begin_year', 'end_year'])
+    return merged_df
 def merge(alma_nlm_merge_df, existing_docline_df):
     #####################################################
     #####################################################
@@ -623,6 +664,8 @@ def merge(alma_nlm_merge_df, existing_docline_df):
 
     existing_docline_df['nlm_unique_id'] = existing_docline_df['nlm_unique_id'].astype(str)
     alma_nlm_merge_df['nlm_unique_id'] = alma_nlm_merge_df['nlm_unique_id'].astype(str)
+    alma_nlm_merge_df['begin_volume'] = ""
+    alma_nlm_merge_df['end_volume'] = ""
     deleted_alma_df = alma_nlm_merge_df.copy()
     #
     deleted_alma_df = deleted_alma_df[deleted_alma_df['Bibliographic Lifecycle'] == 'Deleted']
@@ -713,9 +756,9 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     aggregate_columns = []
     group_by_columns = []
     for column in all_columns:
-        if column in ['begin_year', 'end_year', 'begin_volume', 'end_volume']:
+        if column in ['begin_year', 'end_year']:
             aggregate_columns.append(column)
-        elif column == 'Bibliographic Lifecycle' or column == 'last_modified' or column == 'issns':
+        elif column == 'Bibliographic Lifecycle' or column == 'last_modified' or column == 'issns' or column == 'begin_volume' or column == 'end_volume':
             continue
         else:
             group_by_columns.append(column)
@@ -725,6 +768,9 @@ def merge(alma_nlm_merge_df, existing_docline_df):
 
     all_columns.remove('last_modified')
     all_columns.remove('issns')
+    all_columns.remove('Bibliographic Lifecycle')
+    all_columns.remove('begin_volume')
+    all_columns.remove('end_volume')
 
 
 
@@ -876,8 +922,11 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     different_ranges_alma_output_df = different_ranges_alma_output_df.reset_index()
 
 
+
+
     different_ranges_docline_output_df = existing_docline_df_for_compare.copy()
     different_ranges_docline_output_df = existing_docline_df_for_compare[existing_docline_df_for_compare.set_index(['nlm_unique_id', 'holdings_format']).index.isin(different_ranges_docline_compare_df_agg.set_index(['nlm_unique_id', 'holdings_format']).index)]
+
 
     # print(different_ranges_docline_output_df)
     counts_df = pd.concat([counts_df, pd.DataFrame({'Set': 'Docline Different Ranges', 'Number of Rows': len(different_ranges_docline_output_df), 'Number of NLM Unique IDs': len(pd.unique(different_ranges_docline_output_df['nlm_unique_id']))}, index=[0])])
@@ -899,10 +948,18 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     full_match_output_df['action'] = 'ADD'
     different_ranges_alma_output_df['action'] = 'ADD'
     different_ranges_docline_output_df['action']= 'DELETE'
+
+    different_ranges_alma_output_df = different_ranges_alma_output_df.sort_values(by = ['nlm_unique_id', 'action', 'begin_year', 'end_year'], ascending = [True, False, True, True, True], na_position = 'first')
+    different_ranges_docline_output_df = different_ranges_docline_output_df.sort_values(by = ['nlm_unique_id', 'action', 'begin_year', 'end_year'], ascending = [True, False, True, True, True], na_position = 'first')
+
+    merged_updated_df = pd.concat([different_ranges_alma_output_df, different_ranges_docline_output_df])
+
+    merged_updated_df = merged_updated_df.sort_values(by = ['nlm_unique_id', 'action', 'begin_year', 'end_year'], ascending = [True, False, True, True], na_position = 'first')
     #do I need this
-    different_ranges_alma_output_df.to_excel('Processing/Different Ranges Alma - After -Add- Action Entered.xlsx', index=False)
+    #different_ranges_alma_output_df.to_excel('Processing/Different Ranges Alma - After -Add- Action Entered.xlsx', index=False)
     #in_docline_only_preserve_df['action'] = 'ADD'
 
+    merged_updated_df = merge_intervals_optimized(merged_updated_df)
     add_df = add_df.reset_index()
     counts_df = pd.concat([counts_df, pd.DataFrame({'Set': 'Alma Adds', 'Number of Rows': len(add_df), 'Number of NLM Unique IDs': len(pd.unique(add_df['nlm_unique_id']))}, index=[0])])
 
@@ -911,14 +968,14 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     # print(len(add_df))
     # print(len(pd.unique(add_df['nlm_unique_id'])))
 
-    add_df = add_df.sort_values(by = ['serial_title', 'nlm_unique_id', 'begin_year', 'begin_volume', 'end_year', 'end_volume'], ascending = [True, True, True, True, True, True], na_position = 'first')
-    deleted_output_df = deleted_output_df.sort_values(by = ['serial_title', 'nlm_unique_id', 'begin_year', 'begin_volume', 'end_year', 'end_volume'], ascending = [True, True, True, True, True, True], na_position = 'first')
+    add_df = add_df.sort_values(by = ['serial_title', 'nlm_unique_id', 'begin_year', 'end_year'], ascending = [True, True, True, True], na_position = 'first')
+    deleted_output_df = deleted_output_df.sort_values(by = ['serial_title', 'nlm_unique_id', 'begin_year', 'begin_volume', 'end_year'], ascending = [True, True, True, True], na_position = 'first')
     #deleted_output_df.to_excel('Processing/Deleted DF After Sort.xlsx', index=False)
-    full_match_output_df = full_match_output_df.sort_values(by = ['serial_title', 'nlm_unique_id', 'begin_year', 'begin_volume', 'end_year', 'end_volume'], ascending = [True, True, True, True, True, True])
-    different_ranges_alma_output_df = different_ranges_alma_output_df.sort_values(by = ['serial_title', 'nlm_unique_id', 'begin_year', 'begin_volume', 'end_year', 'end_volume'], ascending = [True, True, True, True, True, True], na_position = 'first')
+    full_match_output_df = full_match_output_df.sort_values(by = ['serial_title', 'nlm_unique_id', 'begin_year', 'end_year'], ascending = [True, True, True, True])
+    #different_ranges_alma_output_df = different_ranges_alma_output_df.sort_values(by = ['serial_title', 'nlm_unique_id', 'begin_year', 'end_year'], ascending = [True, True, True, True], na_position = 'first')
     #different_ranges_alma_output_df.to_excel('Processing/Add Alma After Sort.xlsx', index=False)
-    different_ranges_docline_output_df = different_ranges_docline_output_df.sort_values(by = ['serial_title', 'nlm_unique_id', 'begin_year', 'begin_volume', 'end_year', 'end_volume'], ascending = [True, True, True, True, True, True], na_position = 'first')
-    in_docline_only_preserve_df = in_docline_only_preserve_df.sort_values(by = ['serial_title', 'nlm_unique_id', 'begin_year', 'begin_volume', 'end_year', 'end_volume'], ascending = [True, True, True, True, True, True], na_position = 'first')
+    #different_ranges_docline_output_df = different_ranges_docline_output_df.sort_values(by = ['serial_title', 'nlm_unique_id', 'begin_year', 'end_year'], ascending = [True, True, True, True], na_position = 'first')
+    in_docline_only_preserve_df = in_docline_only_preserve_df.sort_values(by = ['serial_title', 'nlm_unique_id', 'begin_year', 'end_year'], ascending = [True, True, True, True], na_position = 'first')
     # print("\n\nbefore reset index\n\n")
     # print(different_ranges_alma_output_df)
     different_ranges_alma_output_df = different_ranges_alma_output_df.set_index('index')#reset_index()
@@ -958,14 +1015,14 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     # print(different_ranges_alma_output_df)
 
     try:
-        different_ranges_alma_output_df = different_ranges_alma_output_df.drop('level_0', axis=1)
+        merged_updated_df = merged_updated_df.drop('level_0', axis=1)
     except:
         print("level 0 already removed")
     # print("\n\nafter remove level 0 and before remove bibliographic lifecycle\n\n")
     #
     # print(different_ranges_alma_output_df)
     try:
-        different_ranges_alma_output_df = different_ranges_alma_output_df.drop('Bibliographic Lifecycle', axis=1)
+        merged_updated_df = merged_updated_df.drop('Bibliographic Lifecycle', axis=1)
 
     except:
         "Bibliographic Lifecycle column already removed"
@@ -973,23 +1030,23 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     #
     # print(different_ranges_alma_output_df)
 
-    try:
-        different_ranges_docline_output_df = different_ranges_docline_output_df.drop('index', axis=1)
-
-    except:
-        print('index already removed')
-
-    try:
-        in_docline_only_preserve_df = in_docline_only_preserve_df.drop('index', axis=1)
-
-    except:
-        print('index already removed')
+    # try:
+    #     different_ranges_docline_output_df = different_ranges_docline_output_df.drop('index', axis=1)
+    #
+    # except:
+    #     print('index already removed')
+    #
+    # try:
+    #     in_docline_only_preserve_df = in_docline_only_preserve_df.drop('index', axis=1)
+    #
+    # except:
+        # print('index already removed')
     add_df.to_csv('Output/Add Final.csv', index=False)
 
 
-    different_ranges_alma_output_df = different_ranges_alma_output_df.reset_index()
+    # different_ranges_alma_output_df = different_ranges_alma_output_df.reset_index()
     try:
-        different_ranges_alma_output_df = different_ranges_alma_output_df.drop('index', axis=1)
+        merged_updated_df = merged_updated_df.drop('index', axis=1)
 
     except:
         "index column already removed"
@@ -998,8 +1055,8 @@ def merge(alma_nlm_merge_df, existing_docline_df):
 
     deleted_output_df.to_csv('Output/Delete Final.csv', index=False)
     full_match_output_df.to_csv('Output/Full Match Final.csv', index=False)
-    different_ranges_alma_output_df.to_csv('Output/Different Ranges Alma Final.csv', index=False)
-    different_ranges_docline_output_df.to_csv('Output/Different Ranges Docline Final.csv', index=False)
+    merged_updated_df.to_csv('Output/Update Final.csv', index=False)
+    #different_ranges_docline_output_df.to_csv('Output/Different Ranges Docline Final.csv', index=False)
 
     in_docline_only_preserve_df = in_docline_only_preserve_df.reset_index()
     counts_df = pd.concat([counts_df, pd.DataFrame({'Set': 'In Docline Only Keep', 'Number of Rows': len(in_docline_only_preserve_df), 'Number of NLM Unique IDs': len(pd.unique(in_docline_only_preserve_df['nlm_unique_id']))}, index=[0])])
