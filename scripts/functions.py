@@ -428,25 +428,25 @@ def convert(merged_df, docline_df):
             if 'from' in coverage and 'until' in coverage:
                 beginning = coverage.split('from')[-1].split('until')[0].strip()#.split(r'[-\s \\]')[-1].strip()
 
-                begin_year = re.sub(r'^[^:]*?(\d{4}).*$', r'\1', beginning)
+                begin_year = re.sub(r'.*?(\d{4}).*$', r'\1', beginning)
 
-                # if 'volume' in beginning:
-                #     begin_volume = re.sub(r'^.*?volume\:\s+(\d+).*$', r'\1', beginning)
+                if 'volume' in beginning:
+                    begin_volume = re.sub(r'    .*?volume\:\s+(\d+).*$', r'\1', beginning)
 
 
                 end = coverage.split('until')[-1]
 
-                end_year = re.sub(r'^[^:]*?(\d{4}).*$', r'\1', end)
+                end_year = re.sub(r'.*?(\d{4}).*$', r'\1', end)
 
                 # if 'volume' in end:
-                #     end_volume = re.sub(r'^.*?volume\:\s+(\d+).*$', r'\1', end)
+                #     end_volume = re.sub(r'    .*?volume\:\s+(\d+).*$', r'\1', end)
 
             elif 'from' in coverage:
 
                 beginning = coverage.split('from')[-1].strip()
-                begin_year = re.sub(r'^[^:]*?(\d{4}).*$', r'\1', beginning)
+                begin_year = re.sub(r'.*?(\d{4}).*$', r'\1', beginning)
                 # if 'volume' in beginning:
-                #     begin_volume = re.sub(r'^.*?volume\:\s+(\d+).*$', r'\1', beginning)
+                #     begin_volume = re.sub(r'    .*?volume\:\s+(\d+).*$', r'\1', beginning)
                 # else:
                 #     begin_volume = None
 
@@ -590,76 +590,63 @@ def removeNA(string):
 
 
 def merge_intervals_optimized(df):
+    # Sort the DataFrame
     df.sort_values(by=['nlm_unique_id', 'holdings_format', 'action', 'begin_year'], inplace=True)
     df['end_year'].fillna(10000, inplace=True)  # Using 10000 to represent 'indefinite'
 
-    merged_intervals = []
-    current_start = current_end = None
-    current_id = current_format = current_action = None
+    output_df = pd.DataFrame(columns=df.columns)
+    current_row = None
 
-    for index, row in df.iterrows():
-        if pd.isna(row['begin_year']):
-            # Skip rows where begin_year is NaN
-            continue
+    for _, row in df.iterrows():
+        if row['record_type'] == 'HOLDING':
+            output_df = pd.concat([output_df, pd.DataFrame([row])], ignore_index=True)
+        elif row['record_type'] == 'RANGE':
+            if current_row is None or \
+               row['nlm_unique_id'] != current_row['nlm_unique_id'] or \
+               row['holdings_format'] != current_row['holdings_format'] or \
+               row['begin_year'] > current_row['end_year']:
+                if current_row is not None:
+                    output_df = pd.concat([output_df, pd.DataFrame([current_row])], ignore_index=True)
+                current_row = row
+            else:
+                # Extend the current range if overlapping
+                current_row['end_year'] = max(current_row['end_year'], row['end_year'])
 
-        # Check if we have moved to a new group or if the current range is non-contiguous
-        if (row['nlm_unique_id'] != current_id or row['holdings_format'] != current_format or
-            row['action'] != current_action or (current_end != 10000 and row['begin_year'] - 1 > current_end)):
-            # Append the previous group's merged interval if it exists
-            if current_id is not None:
-                merged_intervals.append([current_id, current_format, current_action, current_start, None if current_end == 10000 else current_end])
-            # Start a new group or range
-            current_id, current_format, current_action, current_start, current_end = row['nlm_unique_id'], row['holdings_format'], row['action'], row['begin_year'], row['end_year']
-        else:
-            # Merge intervals within the same group
-            if row['begin_year'] <= current_end:
-                current_end = max(current_end, row['end_year'])
+    # Append the last range row if it exists
+    if current_row is not None and current_row['record_type'] == 'RANGE':
+        output_df = pd.concat([output_df, pd.DataFrame([current_row])], ignore_index=True)
 
-    # Append the last interval
-    merged_intervals.append([current_id, current_format, current_action, current_start, None if current_end == 10000 else current_end])
-
-    merged_df = pd.DataFrame(merged_intervals, columns=['nlm_unique_id', 'holdings_format', 'action', 'begin_year', 'end_year'])
-    return merged_df
-
+    return output_df
 
 # Adjusted function to merge intervals
 def merge_intervals_optimized(df):
+    # Sort the DataFrame
     df.sort_values(by=['nlm_unique_id', 'holdings_format', 'action', 'begin_year'], inplace=True)
     df['end_year'].fillna(10000, inplace=True)  # Using 10000 to represent 'indefinite'
 
-    merged_intervals = []
-    current_start = current_end = None
-    current_id = current_format = current_action = None
+    output_df = pd.DataFrame(columns=df.columns)
+    current_row = None
 
-    for index, row in df.iterrows():
-        if row['record_type'] == "HOLDING":
-            merged_intervals.append([row['nlm_unique_id'], row['holdings_format'], row['action'], row['record_type'], row['begin_year'], row['end_year']])
-        else:
-            if pd.isna(row['begin_year']):
-                # Skip rows where begin_year is NaN
-                continue
-
-            # Check if we have moved to a new group (nlm_unique_id, holdings_format, action)
-            if row['nlm_unique_id'] != current_id or row['holdings_format'] != current_format or row['action'] != current_action:
-                # Append the previous group's merged interval if it exists
-                if current_id is not None:
-                    merged_intervals.append([current_id, current_format, current_action, row['record_type'], current_start, None if current_end == 10000 else current_end])
-                # Start a new group
-                current_id, current_format, current_action, current_start, current_end = row['nlm_unique_id'], row['holdings_format'], row['action'], row['begin_year'], row['end_year']
+    for _, row in df.iterrows():
+        if row['record_type'] == 'HOLDING':
+            output_df = pd.concat([output_df, pd.DataFrame([row])], ignore_index=True)
+        elif row['record_type'] == 'RANGE':
+            if current_row is None or \
+               row['nlm_unique_id'] != current_row['nlm_unique_id'] or \
+               row['holdings_format'] != current_row['holdings_format'] or \
+               row['begin_year'] > current_row['end_year']:
+                if current_row is not None:
+                    output_df = pd.concat([output_df, pd.DataFrame([current_row])], ignore_index=True)
+                current_row = row
             else:
-                # Merge intervals within the same group
-                if current_end != 10000 and (row['begin_year'] <= current_end or row['begin_year'] - 1 == current_end):
-                    current_end = max(current_end, row['end_year'])
-                else:
-                    # Append the previous interval and start a new one within the same group
-                    merged_intervals.append([current_id, current_format, current_action, row['record_type'], current_start, None if current_end == 10000 else current_end])
-                    current_start, current_end = row['begin_year'], row['end_year']
+                # Extend the current range if overlapping
+                current_row['end_year'] = max(current_row['end_year'], row['end_year'])
 
-    # Append the last interval
-    #merged_intervals.append([current_id, current_format, current_action, row['record_type'], current_start, None if current_end == 10000 else current_end])
+    # Append the last range row if it exists
+    if current_row is not None and current_row['record_type'] == 'RANGE':
+        output_df = pd.concat([output_df, pd.DataFrame([current_row])], ignore_index=True)
 
-    merged_df = pd.DataFrame(merged_intervals, columns=['nlm_unique_id', 'holdings_format', 'action', 'record_type' ,'begin_year', 'end_year'])
-    return merged_df
+    return output_df
 
 # # Load the dataset
 # new_file_path = '/path/to/your/file.csv'  # Replace with your file path
@@ -1013,19 +1000,24 @@ def merge(alma_nlm_merge_df, existing_docline_df):
 
     no_dates_df.to_csv("Output/No Dates in Update Table.xlsx")
     different_ranges_alma_output_df = different_ranges_alma_output_df.sort_values(by = ['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'begin_year', 'end_year'], ascending = [True, True, False, True, True, True], na_position = 'first')
-    filtered_new_df = different_ranges_alma_output_df[['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'begin_year', 'end_year']]#.dropna(subset=['begin_year'])
-    merged_new_df_optimized = merge_intervals_optimized(filtered_new_df.copy())
+    #filtered_new_df = different_ranges_alma_output_df[['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'begin_year', 'end_year']]#.dropna(subset=['begin_year'])
+    updated_df = merge_intervals_optimized(different_ranges_alma_output_df.copy())
 
+    updated_df.sort_values(by=['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'begin_year'], inplace=True)
     # Merge the original dataframe with the merged intervals
-    updated_df = different_ranges_alma_output_df.drop(columns=['begin_year', 'end_year']).merge(merged_new_df_optimized, on=['nlm_unique_id', 'holdings_format', 'action', 'record_type'], how='left')
+    #updated_df = different_ranges_alma_output_df.drop(columns=['begin_year', 'end_year']).merge(merged_new_df_optimized, on=['nlm_unique_id', 'holdings_format', 'action', 'record_type'], how='left')
 
     # Optional: Remove duplicate rows based on the compound key
-    updated_df.drop_duplicates(subset=['nlm_unique_id', 'holdings_format', 'action', 'record_type'], inplace=True)
-    updated_df.loc[updated_df['end_year'].isna(), 'currently_received'] = "Yes"
+    #updated_df.drop_duplicates(subset=['nlm_unique_id', 'holdings_format', 'action', 'record_type'], inplace=True)
+    updated_df.loc[updated_df['end_year'] == 10000, 'currently_received'] = "Yes"
+
+
+
 
     for index, row in updated_df.iterrows():
-        if row['record_type'] == "RANGE" and updated_df.loc[index - 1, 'record_type'] == "HOLDING":
-            updated_df.loc[index - 1, 'currently_received'] = row['currently_received']
+        if index != 0:
+            if row['record_type'] == "RANGE" and updated_df.loc[index - 1, 'record_type'] == "HOLDING":
+                updated_df.loc[index - 1, 'currently_received'] = row['currently_received']
 
     columns = updated_df.columns.tolist()
     columns.insert(8, columns.pop(18))
@@ -1057,19 +1049,42 @@ def merge(alma_nlm_merge_df, existing_docline_df):
 
     no_dates_add_df.to_csv("Output/No Dates in Add Table.xlsx")
     add_df = add_df.sort_values(by = ['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'begin_year', 'end_year'], ascending = [True, True, False, True, True, True], na_position = 'first')
-    filtered_new_df = add_df[['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'begin_year', 'end_year']]#.dropna(subset=['begin_year'])
-    merged_new_df_optimized = merge_intervals_optimized(filtered_new_df.copy())
+    #filtered_new_df = add_df[['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'begin_year', 'end_year']]#.dropna(subset=['begin_year'])
+
+
+    updated_add_df = merge_intervals_optimized(add_df.copy())
 
     # Merge the original dataframe with the merged intervals
-    updated_add_df = add_df.drop(columns=['begin_year', 'end_year']).merge(merged_new_df_optimized, on=['nlm_unique_id', 'holdings_format', 'action', 'record_type'], how='left')
+    #updated_add_df = add_df.drop(columns=['begin_year', 'end_year']).merge(merged_new_df_optimized, on=['nlm_unique_id', 'holdings_format', 'action', 'record_type'], how='left')
 
     # Optional: Remove duplicate rows based on the compound key
-    updated_add_df.drop_duplicates(subset=['nlm_unique_id', 'holdings_format', 'action', 'record_type'], inplace=True)
-
-    #merged_updated_df = pd.concat([updated_df, different_ranges_docline_output_df])
+    #updated_add_df.drop_duplicates(subset=['nlm_unique_id', 'holdings_format', 'action', 'record_type'], inplace=True)
 
 
     updated_add_df = updated_add_df.sort_values(by = ['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'begin_year', 'end_year'], ascending = [True, True, False, True, True, True], na_position = 'first')
+
+
+
+    #merged_updated_df = pd.concat([updated_df, different_ranges_docline_output_df])
+    updated_add_df.loc[updated_add_df['end_year'] == 10000, 'currently_received'] = "Yes"
+
+
+
+    for index, row in updated_add_df.iterrows():
+        if index != 0:
+            if row['record_type'] == "RANGE" and updated_add_df.loc[index - 1, 'record_type'] == "HOLDING":
+                updated_add_df.loc[index - 1, 'currently_received'] = row['currently_received']
+
+
+
+
+    #updated_add_df = updated_add_df.reset_index()
+    updated_add_df = updated_add_df.sort_values(by = ['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'begin_year', 'end_year'], ascending = [True, True, False, True, True, True], na_position = 'first')
+    columns_add = updated_add_df.columns.tolist()
+    columns_add.insert(8, columns_add.pop(18))
+    columns_add.insert(9, columns_add.pop(19))
+
+    updated_add_df = updated_add_df[columns_add]
 
     updated_add_df['end_year'] = updated_add_df['end_year'].apply(lambda x: str(x).replace("10000", ""))
     updated_add_df['end_year'] = pd.to_numeric(updated_add_df['end_year'], errors='coerce')
@@ -1077,9 +1092,6 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     updated_add_df['end_year'] = updated_add_df['end_year'].replace(0, np.nan)
 
     updated_add_df = updated_add_df.sort_values(by = ['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'begin_year', 'end_year'], ascending = [True, True, False, True, True, True], na_position = 'first')
-
-
-
 
 
     try:
@@ -1210,12 +1222,7 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     #
     # print(different_ranges_alma_output_df)
 
-    updated_add_df = updated_add_df.reset_index()
-    columns_add = updated_add_df.columns.tolist()
-    columns_add.insert(8, columns_add.pop(18))
-    columns_add.insert(9, columns_add.pop(19))
 
-    updated_add_df = updated_add_df[columns_add]
     # try:
     #     in_docline_only_preserve_df = in_docline_only_preserve_df.drop('index', axis=1)
     #
