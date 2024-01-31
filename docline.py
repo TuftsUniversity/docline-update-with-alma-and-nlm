@@ -44,7 +44,7 @@ nlm_choice = input("Do you want to have the program ingest the latest NLM from t
 
 input("Download your local version of the Analytics all journals in the format at \"/shared/Community/Reports/Institutions/Tufts University\".  Put this in the \"Analytics/\" folder in this directory.\nPress any key to continue")
 #analytics_choice = input("Do you want to have the program ingest the your journal data from Analytics, or do you have a local copy in the 'Analytics' folder you would like it to use?  Note that you'll have to put the path in your secrets_local file if 1.  \nType the number next to your choice.\n\t1-Retrive for me\n\t2-I have a local copy\nChoice:")
-print_or_electronic_choice = input("Do you want to parse/compare print, electronic, or both?\n\t1-Print\n\t2-Electronic\n\t3-Both\nChoice:")
+print_or_electronic_choice = input("Do you want to parse/compare print, electronic, or both?\n\t1-Print\n\t2-Electronic\nChoice:")
 print_or_electronic_choice = str(print_or_electronic_choice)
 input("The Docline file will be retrieved from the \"Docline\" folder in this directory.   Retrieve this from your Docline institutional account\nPress any key to continue")
 #
@@ -57,15 +57,15 @@ getNLMData(nlm_choice)
 analytics_filename = getAnalyticsData()
 
 #group and merge
-merged_df = groupAndMergeAlmaAndDocline(analytics_filename)
+merged_df = groupAndMergeAlmaAndDocline(analytics_filename, print_or_electronic_choice)
 
 
 
 # convert Alma medical journals data into Docline format
 files_docline = glob.glob('Docline/*.csv', recursive = True)
 docline_filename = files_docline[0]
-docline_df = pd.read_csv(docline_filename, engine='python')
-alma_nlm_merge_df = convert(merged_df, docline_df)
+docline_df = pd.read_csv(docline_filename, engine='python', dtype={'embargo_period': 'Int64'})
+alma_nlm_merge_df = convert(merged_df, docline_df, print_or_electronic_choice)
 
 
 # prepare Docline and Alma Medical journals CSV (Docline-formatted)
