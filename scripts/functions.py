@@ -220,13 +220,13 @@ def groupAndMergeAlmaAndDocline(analytics_filename, choice):
         grouped_df = df.groupby(["Title", "MMS Id", "Network Number (OCoLC)", "ISSN", "Lifecycle", "Electronic or Physical"])["Coverage Information Combined"].apply(lambda x: ';'.join(x)).reset_index()
     print("complete groupby")
     print(grouped_df)
+    grouped_df.to_csv("Processing/Grouped DF.csv", index=False)
+    #grouped_issn_df = grouped_df.copy()
 
-    grouped_issn_df = grouped_df.copy()
-
-    grouped_issn_df = df.groupby(["Title", "MMS Id", "ISSN", "Lifecycle", "Electronic or Physical", "Embargo Months", "Embargo Years"], dropna=False)["Coverage Information Combined"].apply(lambda x: ';'.join(x)).reset_index()
+    #grouped_issn_df = df.groupby(["Title", "MMS Id", "ISSN", "Lifecycle", "Electronic or Physical", "Embargo Months", "Embargo Years"], dropna=False)["Coverage Information Combined"].apply(lambda x: ';'.join(x)).reset_index()
     #grouped_df = grouped_df.drop_duplicates()
 
-    print(grouped_df)
+    #print(grouped_df)
 
 
     # 1. Explode on OCLC
@@ -284,13 +284,17 @@ def groupAndMergeAlmaAndDocline(analytics_filename, choice):
     print(exploded_issn_df)
 
 
+    exploded_issn_df.to_csv("Processing/Exploded Analytics ISSN After Processing.csv", index=False)
+    
+
 
     exploded_issn_df['ISSN'] = exploded_issn_df['ISSN'].str.strip()
 
 
     exploded_issn_df = exploded_issn_df[exploded_issn_df['ISSN'].notna() & exploded_issn_df['ISSN'] != 'None']
 
-    # print(exploded_issn_df)
+    print(exploded_issn_df)
+
 
     # 4. Merge with NLM data, mostly to get NLM Unique ID for the Alma data
     journal_data_df = pd.read_csv("Processing/journal_data.csv", delimiter="\t")
