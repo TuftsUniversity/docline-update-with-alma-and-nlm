@@ -202,7 +202,7 @@ def groupAndMergeAlmaAndDocline(analytics_filename, choice):
     df = pd.read_csv(analytics_filename, dtype={"MMS Id": "str", 'Network Number (OCoLC)': 'str'}, encoding='utf-8')
 
 
-
+    df['Title'] = df['Title'].apply(lambda x: re.sub(r'\.$', r'', x))
     df['Embargo Months'] = df['Embargo Months'].fillna(0)
     df['Embargo Years'] = df['Embargo Years'].fillna(0)
 
@@ -285,7 +285,7 @@ def groupAndMergeAlmaAndDocline(analytics_filename, choice):
 
 
     exploded_issn_df.to_csv("Processing/Exploded Analytics ISSN After Processing.csv", index=False)
-    
+
 
 
     exploded_issn_df['ISSN'] = exploded_issn_df['ISSN'].str.strip()
@@ -1311,7 +1311,7 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     #
     # print(different_ranges_alma_output_df)
     try:
-        merged_updated_df = merged_updated_df.drop('Bibliographic Lifecycle', axis=1)
+        merged_updated_df = merged_updated_df.drop('Lifecycle', axis=1)
 
     except:
         "Bibliographic Lifecycle column already removed"
@@ -1337,7 +1337,7 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     #
     # print(different_ranges_alma_output_df)
     try:
-        updated_add_df = updated_add_df.drop('Bibliographic Lifecycle', axis=1)
+        updated_add_df = updated_add_df.drop('Lifecycle', axis=1)
 
     except:
         "Bibliographic Lifecycle column already removed"
