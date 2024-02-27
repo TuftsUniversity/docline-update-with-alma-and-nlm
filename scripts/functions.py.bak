@@ -1174,10 +1174,10 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     merged_updated_df['end_year'] = merged_updated_df['end_year'].replace(0, np.nan)
 
 
-    merged_updated_df['begin_year'] = merged_updated_df['begin_year'].apply(lambda x: str(x).replace("10000", ""))
-    merged_updated_df['begin_year'] = pd.to_numeric(merged_updated_df['begin_year'], errors='coerce')
-    merged_updated_df['begin_year'] = merged_updated_df['begin_year'].astype('Int64')
-    merged_updated_df['begin_year'] = merged_updated_df['begin_year'].replace(0, np.nan)
+	merged_updated_df['begin_year'] = merged_updated_df['begin_year'].apply(lambda x: str(x).replace("10000", ""))
+	merged_updated_df['begin_year'] = pd.to_numeric(merged_updated_df['begin_year'], errors='coerce')
+	merged_updated_df['begin_year'] = merged_updated_df['begin_year'].astype('Int64')
+	merged_updated_df['begin_year'] = merged_updated_df['begin_year'].replace(0, np.nan)
 
     merged_updated_df['end_volume'] = merged_updated_df['end_volume'].apply(lambda x: str(x).replace("10000", ""))
     merged_updated_df['end_volume'] = pd.to_numeric(merged_updated_df['end_volume'], errors='coerce')
@@ -1185,16 +1185,16 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     merged_updated_df['end_volume'] = merged_updated_df['end_volume'].replace(0, np.nan)
 
     merged_updated_df['begin_volume'] = merged_updated_df['begin_volume'].apply(lambda x: str(x).replace("10000", ""))
-    merged_updated_df['begin_volume'] = pd.to_numeric(merged_updated_df['begin_volume'], errors='coerce')
-    merged_updated_df['begin_volume'] = merged_updated_df['begin_volume'].astype('Int64')
-    merged_updated_df['begin_volume'] = merged_updated_df['begin_volume'].replace(0, np.nan)
+	merged_updated_df['begin_volume'] = pd.to_numeric(merged_updated_df['begin_volume'], errors='coerce')
+	merged_updated_df['begin_volume'] = merged_updated_df['begin_volume'].astype('Int64')
+	merged_updated_df['begin_volume'] = merged_updated_df['begin_volume'].replace(0, np.nan)
 
 
-    # merged_updated_df['begin_volume'] = None
-    # merged_updated_df['end_volume'] = None
-    merged_updated_df['ignore_warnings'] = "Yes"
-    merged_updated_df = merged_updated_df[((~merged_updated_df['begin_year'].isna()) | (~merged_updated_df['begin_volume'].isna()) | (merged_updated_df['record_type'] == "HOLDING"))]
-    #merged_updated_df = merged_updated_df[(merged_updated_df['nlm_unique_id'] != "NLM_0052457") & (merged_updated_df['nlm_unique_id'] != "NLM_0154720") & (merged_updated_df['nlm_unique_id'] != "NLM_0255562") & (merged_updated_df['nlm_unique_id'] != "NLM_0330471") & (merged_updated_df['nlm_unique_id'] != "NLM_0372435")  & (merged_updated_df['nlm_unique_id'] != "NLM_0326264")]
+	# merged_updated_df['begin_volume'] = None
+	# merged_updated_df['end_volume'] = None
+	merged_updated_df['ignore_warnings'] = "Yes"
+	merged_updated_df = merged_updated_df[((~merged_updated_df['begin_year'].isna()) | (~merged_updated_df['begin_volume'].isna()) | (merged_updated_df['record_type'] == "HOLDING"))]
+	#merged_updated_df = merged_updated_df[(merged_updated_df['nlm_unique_id'] != "NLM_0052457") & (merged_updated_df['nlm_unique_id'] != "NLM_0154720") & (merged_updated_df['nlm_unique_id'] != "NLM_0255562") & (merged_updated_df['nlm_unique_id'] != "NLM_0330471") & (merged_updated_df['nlm_unique_id'] != "NLM_0372435")  & (merged_updated_df['nlm_unique_id'] != "NLM_0326264")]
 
 
 
@@ -1246,19 +1246,9 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     updated_add_df['end_year'] = updated_add_df['end_year'].replace(0, np.nan)
 
     updated_add_df['begin_year'] = updated_add_df['begin_year'].apply(lambda x: str(x).replace("10000", ""))
-    updated_add_df['begin_year'] = pd.to_numeric(updated_add_df['begin_year'], errors='coerce')
-    updated_add_df['begin_year'] = updated_add_df['begin_year'].astype('Int64')
-    updated_add_df['begin_year'] = updated_add_df['begin_year'].replace(0, np.nan)
-
-    updated_add_df['end_volume'] = updated_add_df['end_volume'].apply(lambda x: str(x).replace("10000", ""))
-    updated_add_df['end_volume'] = pd.to_numeric(updated_add_df['end_volume'], errors='coerce')
-    updated_add_df['end_volume'] = updated_add_df['end_volume'].astype('Int64')
-    updated_add_df['end_volume'] = updated_add_df['end_volume'].replace(0, np.nan)
-
-    updated_add_df['begin_volume'] = updated_add_df['begin_volume'].apply(lambda x: str(x).replace("10000", ""))
-    updated_add_df['begin_volume'] = pd.to_numeric(updated_add_df['begin_volume'], errors='coerce')
-    updated_add_df['begin_volume'] = updated_add_df['begin_volume'].astype('Int64')
-    updated_add_df['begin_volume'] = merged_updated_df['begin_volume'].replace(0, np.nan)
+	updated_add_df['begin_year'] = pd.to_numeric(updated_add_df['begin_year'], errors='coerce')
+	updated_add_df['begin_year'] = updated_add_df['begin_year'].astype('Int64')
+	updated_add_df['begin_year'] = updated_add_df['begin_year'].replace(0, np.nan)
 
     updated_add_df = updated_add_df.sort_values(by = ['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'embargo_period', 'begin_year', 'end_year'], ascending = [True, True, False, True, True, True, True], na_position = 'first')
 
@@ -1350,11 +1340,6 @@ def merge(alma_nlm_merge_df, existing_docline_df):
 
 
     try:
-        merged_updated_df = merged_updated_df.drop('Lifecycle', axis=1)
-
-    except:
-        print("Lifecycle column already removed")
-    try:
         merged_updated_df = merged_updated_df.drop('level_0', axis=1)
     except:
         print("level 0 already removed")
@@ -1362,21 +1347,15 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     #
     # print(different_ranges_alma_output_df)
     try:
-        merged_updated_df = merged_updated_df.drop('Lifecycle', axis=1)
+        merged_updated_df = merged_updated_df.drop('Bibliographic Lifecycle', axis=1)
 
     except:
-        print("Lifecycle column already removed")
+        print("Bibliographic Lifecycle column already removed")
     try:
         merged_updated_df = merged_updated_df.drop('Bibliographic Lifecycle', axis=1)
 
     except:
         print("Bibliographic Lifecycle column already removed")
-
-    try:
-        merged_updated_df = merged_updated_df.drop('libid', axis=1)
-
-    except:
-        print("libid column already removed")
 
     # print("\n\nafter remove bibliographic lifecycle\n\n")
     #
@@ -1403,19 +1382,14 @@ def merge(alma_nlm_merge_df, existing_docline_df):
         updated_add_df = updated_add_df.drop('Lifecycle', axis=1)
 
     except:
-        print("Lifecycle column already removed")
+        print("Bibliographic Lifecycle column already removed")
 
     try:
         updated_add_df = updated_add_df.drop('Bibliographic Lifecycle', axis=1)
 
     except:
-        print("Bibliographic Lifecycle column already removed")
+        print("Lifecycle column already removed")
 
-        try:
-            merged_updated_df = merged_updated_df.drop('libid', axis=1)
-
-        except:
-            print("libid column already removed")
 
     # print("\n\nafter remove bibliographic lifecycle\n\n")
     #

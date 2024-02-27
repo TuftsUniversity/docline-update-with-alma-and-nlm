@@ -3,7 +3,7 @@ def merge_intervals_optimized(df):
     An optimized function to merge overlapping intervals for the entire dataframe.
     """
     # Sort the dataframe by nlm_unique_id and begin_year
-    df.sort_values(by=['nlm_unique_id', 'begin_year'], inplace=True)
+    #df.sort_values(by=['nlm_unique_id', 'begin_year'], inplace=True)
 
     # Replace NaN in end_year with a large number to represent 'indefinite'
     df['end_year'].fillna(float('inf'), inplace=True)
