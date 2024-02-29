@@ -760,8 +760,8 @@ def apply_currently_received(updated_df):
 
 def merge_intervals_optimized(df):
     # Sort the DataFrame
-    df.sort_values(by=['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'embargo_period',
-                   'begin_year', 'end_year'], ascending=[True, True, False, True, True, True, True], inplace=True)
+    df.sort_values(by=['nlm_unique_id', 'holdings_format', 'action', 'record_type',
+                   'begin_year', 'end_year'], ascending=[True, True, False, True, True, True], inplace=True)
     # Using 10000 to represent 'indefinite'
     df['end_year'].fillna(10000, inplace=True)
 
@@ -770,54 +770,57 @@ def merge_intervals_optimized(df):
 
     for _, row in df.iterrows():
         if row['record_type'] == 'HOLDING':
-            output_df = pd.concat(
-                [output_df, pd.DataFrame([row])], ignore_index=True)
+            output_df = pd.concat([output_df, pd.DataFrame([row])], ignore_index=True)
         elif row['record_type'] == 'RANGE':
-            if current_row is None:
-                current_row = row
-            elif current_row is not None:
-                #if row['embargo_period']) == current_row['embargo_period'] and
-                if  row['nlm_unique_id'] == current_row['nlm_unique_id'] and
-                    row['holdings_format'] == current_row['holdings_format'] and
+
+
+            if current_row is not None:
+                # if row['embargo_period']) == current_row['embargo_period'] and
+                if row['nlm_unique_id'] != current_row['nlm_unique_id'] or \
+                    row['holdings_format'] != current_row['holdings_format']:
+                    output_df = pd.concat([output_df, pd.DataFrame([current_row])], ignore_index=True)
+                    current_row = row
+                elif row['nlm_unique_id'] == current_row['nlm_unique_id'] and \
+                    row['holdings_format'] == current_row['holdings_format'] and \
                     row['begin_year'] > current_row['end_year']:
 
-                    output_df=pd.concat([output_df, pd.DataFrame([current_row])], ignore_index = True)
+                    output_df = pd.concat([output_df, pd.DataFrame([row])], ignore_index=True)
 
-                 elif row['nlm_unique_id'] == current_row['nlm_unique_id'] and
-                     row['holdings_format'] == current_row['holdings_format'] and
-                     row['begin_year'] <= current_row['end_year']:
-                     row['embargo_period']) != current_row['embargo_period']:
-                     left_effective_date=row['end_date'] -
-                         ((row['embargo_period'] / 12))
-                     right_effective_date=current_row['end_date'] -
-                         ((current_row['embargo_period'] / 12))
-                     if left_effective_date > right_effective_date:
-                         current_row['end_year'] = row['end_year']
-                         current_row['embargo_period'] = row['embargo_period']
-                     elif left_effective_date == right_effective_date and current_row['embargo_period'] > row['embargo_period']:
+                elif row['nlm_unique_id'] == current_row['nlm_unique_id'] and \
+                    row['holdings_format'] == current_row['holdings_format'] and \
+                    row['begin_year'] <= current_row['end_year'] and \
+                    row['embargo_period'] != current_row['embargo_period']:
+                    left_effective_date=row['end_year'] - ((row['embargo_period'] / 12))
+                    right_effective_date=current_row['end_year'] - ((current_row['embargo_period'] / 12))
+                    if left_effective_date > right_effective_date:
+                        current_row['end_year'] = row['end_year']
+                        current_row['embargo_period'] = row['embargo_period']
+                    elif left_effective_date == right_effective_date and current_row['embargo_period'] > row['embargo_period']:
                         current_row['end_year'] = row['end_year']
                         current_row['embargo_period'] = row['embargo_period']
 
-                 elif row['nlm_unique_id'] == current_row['nlm_unique_id'] and
-                     row['holdings_format'] == current_row['holdings_format'] and
-                     row['begin_year'] <= current_row['end_year']:
-                     row['embargo_period']) == current_row['embargo_period']:
+                elif row['nlm_unique_id'] == current_row['nlm_unique_id'] and \
+                    row['holdings_format'] == current_row['holdings_format'] and \
+                    row['begin_year'] <= current_row['end_year'] and \
+                    row['embargo_period'] == current_row['embargo_period']:
                     # Extend the current range if overlapping
-                     current_row['end_year'] = max(current_row['end_year'], row['end_year'])
+                    current_row['end_year'] = max(current_row['end_year'], row['end_year'])
 
-                 # elif elif row['nlm_unique_id'] == current_row['nlm_unique_id'] and
-                 #     row['holdings_format'] == current_row['holdings_format'] and
-                 #     row['begin_year'] > current_row['end_year']:
-                 #     #row['embargo_period']) == current_row['embargo_period']:
-                 #
-                 #     current_row['end_year'] = max(current_row['end_year'], row['end_year'])
-
+                     # elif elif row['nlm_unique_id'] == current_row['nlm_unique_id'] and
+                     #     row['holdings_format'] == current_row['holdings_format'] and
+                     #     row['begin_year'] > current_row['end_year']:
+                     #     #row['embargo_period']) == current_row['embargo_period']:
+                     #
+                     #     current_row['end_year'] = max(current_row['end_year'], row['end_year'])
+            else:
+                current_row = row
+                #output_df = pd.concat([output_df, pd.DataFrame([row])], ignore_index=True)
     # Append the last range row if it exists
     if current_row is not None and current_row['record_type'] == 'RANGE':
-        output_df=pd.concat(
-            [output_df, pd.DataFrame([current_row])], ignore_index=True)
+        output_df=pd.concat([output_df, pd.DataFrame([current_row])], ignore_index=True)
 
     return output_df
+
 
 # # Load the dataset
 # new_file_path = '/path/to/your/file.csv'  # Replace with your file path
