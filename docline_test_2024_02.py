@@ -81,8 +81,12 @@ def merge_intervals_optimized(df):
                         current_row['end_year'] = row['end_year']
                         current_row['embargo_period'] = row['embargo_period']
                     elif left_effective_date == right_effective_date and current_row['embargo_period'] > row['embargo_period']:
-                        current_row['end_year'] = row['end_year']
-                        current_row['embargo_period'] = row['embargo_period']
+                        left_embargo_period = row['embargo_period']
+                        right_embargo_period  = current_row['embargo_period']
+
+                        if left_embargo_period < right_embargo_period:
+                            current_row['end_year'] = row['end_year']
+                            current_row['embargo_period'] = row['embargo_period']
 
                 elif row['nlm_unique_id'] == current_row['nlm_unique_id'] and \
                     row['holdings_format'] == current_row['holdings_format'] and \
@@ -201,6 +205,16 @@ merged_updated_df['begin_year'] = merged_updated_df['begin_year'].apply(lambda x
 merged_updated_df['begin_year'] = pd.to_numeric(merged_updated_df['begin_year'], errors='coerce')
 merged_updated_df['begin_year'] = merged_updated_df['begin_year'].astype('Int64')
 merged_updated_df['begin_year'] = merged_updated_df['begin_year'].replace(0, np.nan)
+
+merged_updated_df['end_volume'] = merged_updated_df['end_volume'].apply(lambda x: str(x).replace("10000", ""))
+merged_updated_df['end_volume'] = pd.to_numeric(merged_updated_df['end_volume'], errors='coerce')
+merged_updated_df['end_volume'] = merged_updated_df['end_volume'].astype('Int64')
+merged_updated_df['end_volume'] = merged_updated_df['end_volume'].replace(0, np.nan)
+
+merged_updated_df['begin_volume'] = merged_updated_df['begin_volume'].apply(lambda x: str(x).replace("10000", ""))
+merged_updated_df['begin_volume'] = pd.to_numeric(merged_updated_df['begin_volume'], errors='coerce')
+merged_updated_df['begin_volume'] = merged_updated_df['begin_volume'].astype('Int64')
+merged_updated_df['begin_volume'] = merged_updated_df['begin_volume'].replace(0, np.nan)
 
 # merged_updated_df['begin_volume'] = None
 # merged_updated_df['end_volume'] = None
