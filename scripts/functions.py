@@ -783,7 +783,10 @@ def merge_intervals_optimized(df):
                 elif row['nlm_unique_id'] == current_row['nlm_unique_id'] and \
                     row['holdings_format'] == current_row['holdings_format'] and \
                     row['begin_year'] > current_row['end_year']:
-
+                    left_effective_date=row['end_year'] - ((row['embargo_period'] / 12))
+                    right_effective_date=current_row['end_year'] - ((current_row['embargo_period'] / 12))
+                    if current_row['embargo_period'] != 0 and current_row['embargo_period'] is not None and right_effective_date > left_effective_date:
+                        current_row['embargo_period'] = 0
                     output_df = pd.concat([output_df, pd.DataFrame([row])], ignore_index=True)
 
                 elif row['nlm_unique_id'] == current_row['nlm_unique_id'] and \
