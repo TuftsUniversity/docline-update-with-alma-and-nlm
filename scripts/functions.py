@@ -15,6 +15,7 @@ import csv
 import io
 from bs4 import BeautifulSoup
 import glob
+import re
 
 
 def parse_xml_chunked(file_path, tag):
@@ -527,7 +528,9 @@ def convert(merged_df, docline_df, choice):
         alma_nlm_merge_df = pd.concat([alma_nlm_merge_df, pd.DataFrame(main_row, index=[0])])
 
         # Create additional HOLDING rows for coverage data
-        coverage_data = str(row['Coverage Information Combined']).split(';')
+        coverage_data = re.sub(r';{2,}', r';', row['Coverage Information Combined'])
+        coverage_data = str(coverage_data).split(';')
+
         embargo_months = str(row['Embargo Months']).split(',')
 
         # embargo_months = embargo_months.replace('[', '')
@@ -760,8 +763,7 @@ def apply_currently_received(updated_df):
 
 def merge_intervals_optimized(df):
     # Sort the DataFrame
-    df.sort_values(by=['nlm_unique_id', 'holdings_format', 'action', 'record_type',
-                   'begin_year', 'end_year'], ascending=[True, True, False, True, True, True], inplace=True)
+    df.sort_values(by=['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'begin_year', 'end_year'], ascending=[True, True, False, True, True, True], inplace=True)
     # Using 10000 to represent 'indefinite'
     df['end_year'].fillna(10000, inplace=True)
 
@@ -827,6 +829,7 @@ def merge_intervals_optimized(df):
         output_df=pd.concat([output_df, pd.DataFrame([current_row])], ignore_index=True)
 
     return output_df
+
 
 # # Load the dataset
 # new_file_path = '/path/to/your/file.csv'  # Replace with your file path

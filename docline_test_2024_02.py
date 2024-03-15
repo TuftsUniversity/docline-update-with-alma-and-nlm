@@ -45,8 +45,7 @@ def apply_currently_received(updated_df):
 
 def merge_intervals_optimized(df):
     # Sort the DataFrame
-    df.sort_values(by=['nlm_unique_id', 'holdings_format', 'action', 'record_type',
-                   'begin_year', 'end_year'], ascending=[True, True, False, True, True, True], inplace=True)
+    df.sort_values(by=['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'begin_year', 'end_year'], ascending=[True, True, False, True, True, True], inplace=True)
     # Using 10000 to represent 'indefinite'
     df['end_year'].fillna(10000, inplace=True)
 
@@ -184,8 +183,12 @@ no_dates_df.to_csv("Output/No Dates in Update Table.xlsx")
 different_ranges_alma_output_df = different_ranges_alma_output_df.sort_values(by = ['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'embargo_period', 'begin_year', 'end_year'], ascending = [True, True, False, True, True, True, True], na_position = 'first')
 # filtered_new_df = different_ranges_alma_output_df[['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'begin_year', 'end_year']]#.dropna(subset=['begin_year'])
 different_ranges_alma_output_df.to_csv('Processing/Different Ranges Alma Before Compression.csv', index=False)
-updated_df = merge_intervals_optimized(different_ranges_alma_output_df.copy())
-updated_df.sort_values(by=['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'embargo_period', 'begin_year'], inplace=True)
+#updated_df = merge_intervals_optimized(different_ranges_alma_output_df.copy())
+updated_df = different_ranges_alma_output_df.copy()
+#updated_df['end_year'].fillna(10000, inplace=True)
+
+updated_df.sort_values(by=['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'begin_year', 'end_year'], ascending=[True, True, False, True, True, True], inplace=True)
+
 # Merge the original dataframe with the merged intervals
 # updated_df = different_ranges_alma_output_df.drop(columns=['begin_year', 'end_year']).merge(merged_new_df_optimized, on=['nlm_unique_id', 'holdings_format', 'action', 'record_type'], how='left')
 # Optional: Remove duplicate rows based on the compound key
