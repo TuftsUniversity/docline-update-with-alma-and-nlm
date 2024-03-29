@@ -17,7 +17,9 @@ from bs4 import BeautifulSoup
 import glob
 sys.path.append('scripts/')
 from functions import *
+from datetime import datetime
 
+startTime = datetime.now()
 oDir = "./Output"
 if not os.path.isdir(oDir) or not os.path.exists(oDir):
     os.makedirs(oDir)
@@ -78,7 +80,8 @@ existing_docline_df = return_list[1]
 
 merge(alma_nlm_merge_df, existing_docline_df)
 
-
+print("Execution time:\t")
+print(datetime.now() - startTime)
 sys.exit()
 #full_match_output_df[full_match_output_df[['record_type'] == 'RANGE']] =
 # old_ranges_df = old_ranges_df[old_ranges_df.nlm_unique_id.isin(different_docline_range_compare_df.nlm_unique_id)]
