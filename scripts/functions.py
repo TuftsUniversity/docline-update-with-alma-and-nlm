@@ -929,16 +929,15 @@ def merge(alma_nlm_merge_df, existing_docline_df):
 
 
 
-    current_alma_df['end_year'] = current_alma_df['end_year'].apply(lambda x: str(x).replace("10000", ""))
     current_alma_df['end_year'] = pd.to_numeric(current_alma_df['end_year'], errors='coerce')
     current_alma_df['end_year'] = current_alma_df['end_year'].astype('Int64')
-    #current_alma_df['end_year'] = current_alma_df['end_year'].replace(0, np.nan)
+    current_alma_df['end_year'] = current_alma_df['end_year'].replace(0, np.nan)
 
 
-    current_alma_df['begin_year'] = current_alma_df['begin_year'].apply(lambda x: str(x).replace("10000", ""))
+    #current_alma_df['begin_year'] = current_alma_df['begin_year'].apply(lambda x: str(x).replace("10000", ""))
     current_alma_df['begin_year'] = pd.to_numeric(current_alma_df['begin_year'], errors='coerce')
     current_alma_df['begin_year'] = current_alma_df['begin_year'].astype('Int64')
-    #current_alma_df['begin_year'] = current_alma_df['begin_year'].replace(0, np.nan)
+    current_alma_df['begin_year'] = current_alma_df['begin_year'].replace(0, np.nan)
 
     # current_alma_df['end_volume'] = current_alma_df['end_volume'].apply(lambda x: str(x).replace("10000", ""))
     # current_alma_df['end_volume'] = pd.to_numeric(current_alma_df['end_volume'], errors='coerce')
@@ -953,8 +952,6 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     current_alma_df['embargo_period'] = current_alma_df['embargo_period'].apply(lambda x: str(x).replace("10000", ""))
     current_alma_df['embargo_period'] = pd.to_numeric(current_alma_df['embargo_period'], errors='coerce')
     current_alma_df['embargo_period'] = current_alma_df['embargo_period'].astype('Int64')
-    #current_alma_df['embargo_period'] = current_alma_df['embargo_period'].replace(0, np.nan)
-
 
 
     current_alma_df = merge_intervals_optimized(current_alma_df.copy())
@@ -962,8 +959,14 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     current_alma_df.sort_values(by=['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'embargo_period', 'begin_year'], inplace=True)
 
     current_alma_df.loc[current_alma_df['end_year'] == 10000, 'currently_received'] = "Yes"
+    current_alma_df['begin_year'] = current_alma_df['begin_year'].replace(to_replace=10000, value=np.nan)
+
+    current_alma_df['end_year'] = current_alma_df['end_year'].replace(to_replace=10000, value=np.nan)
+
+    #current_alma_df['embargo_period'] = current_alma_df['embargo_period'].replace(0, np.nan)
 
 
+    #current_alma_df['end_year'] = current_alma_df['end_year'].astype()
     current_alma_df = apply_currently_received(current_alma_df)
 
     # print(deleted_output_df)
@@ -1015,6 +1018,7 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     #print(matched_base_df_alma_side)
     #print(matched_base_df_docline_side)
 
+    current_alma_df['end_year'] = current_alma_df['end_year'].apply(lambda x: str(x).replace("10000", ""))
     matched_base_df_alma_side.to_csv('Analysis/matched_base_df_alma_side.csv', index=False)
     matched_base_df_docline_side.to_csv('Analysis/matched_base_df_docline_side.csv', index=False)
 
