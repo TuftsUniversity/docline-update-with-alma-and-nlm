@@ -729,12 +729,13 @@ def prepare(alma_nlm_merge_df, docline_df, print_or_electronic_choice):
     return [alma_nlm_merge_df, existing_docline_df]
 def removeNA(string):
 
-    list = string.split("; ")
+    if pd.isna(string) == False:
+        list = string.split("; ")
 
-    if "<NA>" in list:
-        list.remove("<NA>")
+        if "<NA>" in list:
+            list.remove("<NA>")
 
-    string = "; ".join(list)
+        string = "; ".join(list)
 
     return(string)
 
@@ -764,7 +765,7 @@ def apply_currently_received(updated_df):
 
 def merge_intervals_optimized(df):
     # Sort the DataFrame
-    df.sort_values(by=['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'begin_year', 'end_year'], ascending=[True, True, False, True, True, True], inplace=True)
+    df.sort_values(by=['nlm_unique_id', 'holdings_format', 'record_type', 'begin_year', 'end_year'], ascending=[True, True, True, True, True], inplace=True)
     # Using 10000 to represent 'indefinite'
     df['end_year'].fillna(10000, inplace=True)
 
@@ -953,6 +954,7 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     current_alma_df['embargo_period'] = pd.to_numeric(current_alma_df['embargo_period'], errors='coerce')
     current_alma_df['embargo_period'] = current_alma_df['embargo_period'].astype('Int64')
 
+    current_alma_df.to_excel("Output/Alma DF before compression.xlsx", index=False)
 
     current_alma_df = merge_intervals_optimized(current_alma_df.copy())
 
@@ -1043,15 +1045,6 @@ def merge(alma_nlm_merge_df, existing_docline_df):
 
     aggregate_columns = []
     group_by_columns = []
-    for column in all_columns:
-        if column in ['begin_year', 'end_year']:
-            aggregate_columns.append(column)
-        elif column == 'Bibliographic Lifecycle' or column == 'last_modified' or column == 'issns' or column == 'begin_volume' or column == 'end_volume':
-            continue
-        else:
-            group_by_columns.append(column)
-
-
     all_columns = all_columns.tolist()
 
     all_columns.remove('last_modified')
@@ -1061,6 +1054,17 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     all_columns.remove('end_volume')
     all_columns.remove('action')
     all_columns.remove('ignore_warnings')
+    for column in all_columns:
+        if column in ['begin_year', 'end_year']:
+            aggregate_columns.append(column)
+        elif column == 'Bibliographic Lifecycle' or column == 'last_modified' or column == 'issns' or column == 'begin_volume' or column == 'end_volume':
+            continue
+        else:
+            group_by_columns.append(column)
+
+
+
+
 
 
 
@@ -1114,6 +1118,12 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     existing_docline_for_compare_agg_df = existing_docline_df_for_compare.copy()
     matched_nlm_alma_df_for_compare_agg = matched_base_df_alma_side.copy()
 
+    # matched_nlm_alma_df_for_compare_agg[['begin_year', 'end_year']] = matched_nlm_alma_df_for_compare_agg[['begin_year', 'end_year']].applymap(lambda x: removeNA(x))
+    # existing_docline_for_compare_agg_df[['begin_year', 'end_year']] = existing_docline_for_compare_agg_df[['begin_year', 'end_year']].applymap(lambda x: removeNA(x))
+
+
+    matched_nlm_alma_df_for_compare_agg = matched_nlm_alma_df_for_compare_agg.sort_values(by = ['nlm_unique_id', 'holdings_format', 'record_type', 'begin_year', 'end_year'], ascending = [True, True, True, True, True], na_position = 'first')
+    existing_docline_for_compare_agg_df = existing_docline_for_compare_agg_df.sort_values(by = ['nlm_unique_id', 'holdings_format', 'record_type', 'begin_year', 'end_year'], ascending = [True, True, True, True, True], na_position = 'first')
 
 
     existing_docline_for_compare_agg_df = existing_docline_for_compare_agg_df.groupby(group_by_columns, dropna=False, as_index=False).agg({aggregate_columns[0]: lambda x: '; '.join(set(x.astype(str))), aggregate_columns[1]: lambda x: '; '.join(set(x.astype(str)))})
@@ -1122,7 +1132,6 @@ def merge(alma_nlm_merge_df, existing_docline_df):
 
 
     # in the rolled up range data, remove the appearance of "<NA>" in the stringified list
-    matched_nlm_alma_df_for_compare_agg[['begin_year', 'end_year']] = matched_nlm_alma_df_for_compare_agg[['begin_year', 'end_year']].applymap(lambda x: removeNA(x))
 
 
 
