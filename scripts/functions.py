@@ -889,13 +889,24 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     alma_nlm_merge_df['nlm_unique_id'] = alma_nlm_merge_df['nlm_unique_id'].astype(str)
     alma_nlm_merge_df['begin_volume'] = ""
     alma_nlm_merge_df['end_volume'] = ""
-    deleted_alma_df = alma_nlm_merge_df.copy()
+    deleted_alma_df = pd.DataFrame(columns=alma_nlm_merge_df.columns)
     #
-    try:
-        deleted_alma_df = deleted_alma_df[deleted_alma_df['Bibliographic Lifecycle'] == 'Deleted']
-    except:
-        deleted_alma_df = deleted_alma_df[deleted_alma_df['Bibliographic Lifecycle'] == 'Deleted']
-    #
+    if 'Bibliographic Lifecycle' in deleted_alma_df and 'ILL Allowed' in deleted_alma_df:
+        #if 'ILL Allowed' in deleted_alma_df:
+        deleted_alma_df = deleted_alma_df.loc[(deleted_alma_df['Bibliographic Lifecycle'] == 'Deleted') | (deleted_alma_df['ILL Allowed'] == 'ILL Not Allowed')]
+        # else:
+        #
+    elif 'Bibliographic Lifecycle' in deleted_alma_df and 'ILL Allowed' not in deleted_alma_df:
+        deleted_alma_df = deleted_alma_df.loc[deleted_alma_df['Bibliographic Lifecycle'] == 'Deleted']
+
+    elif 'Lifecycle' in deleted_alma_df and 'ILL Allowed' in deleted_alma_df:
+        deleted_alma_df = deleted_alma_df.loc[(deleted_alma_df['Lifecycle'] == 'Deleted') | (deleted_alma_df['ILL Allowed'] == 'ILL Not Allowed')]
+    elif 'Lifecycle' in deleted_alma_df and 'ILL Allowed' not in deleted_alma_df:
+        deleted_alma_df = deleted_alma_df.loc[(deleted_alma_df['Lifecycle'] == 'Deleted')]
+    elif 'ILL Allowed' in deleted_alma_df and 'Lifecycle' not in deleted_alma_df and 'Bibliographic Lifecycle' not in deleted_alma_df:
+        deleted_alma_df = deleted_alma_df.loc[deleted_alma_df['ILL Allowed'] == 'ILL Not Allowed']
+
+
     current_alma_df = alma_nlm_merge_df.copy()
 
     current_alma_df = current_alma_df[~current_alma_df.set_index(['nlm_unique_id', 'holdings_format']).index.isin(deleted_alma_df.set_index(['nlm_unique_id', 'holdings_format']).index)]
@@ -1695,7 +1706,7 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     different_ranges_alma_output_df.loc[(different_ranges_alma_output_df['record_type'] == 'RANGE') & (different_ranges_alma_output_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_period', 'limited_retention_type', 'embargo_period', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = np.nan
     #deleted_output_df.loc[(deleted_output_df['record_type'] == 'RANGE') & (merged_updated_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_period', 'limited_retention_type', 'embargo_period', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = np.nan
 
-    deleted_output_df.to_csv('Output/Delete Final.csv', index=False)
+    deleted_output_df.to_csv('Output/Delete Final - Either Withdrawn from Alma or ILL Not Allowed for E-Resources.csv', index=False)
     full_match_output_df.to_csv('Output/Full Match Final.csv', index=False)
     merged_updated_df.to_csv('Output/Update Final.csv', index=False)
     different_ranges_docline_output_df.to_csv('Output/Different Ranges Docline Final.csv', index=False)
