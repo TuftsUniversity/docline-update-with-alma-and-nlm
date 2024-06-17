@@ -574,6 +574,7 @@ def apply_currently_received(updated_df):
 ####
 def merge_intervals_optimized(df):
     # Sort the DataFrame
+
     df.sort_values(by=['nlm_unique_id', 'holdings_format', 'record_type', 'begin_year', 'end_year', 'embargo_period'], ascending=[True, True, True, True, True, True], inplace=True)
     # Using 10000 to represent 'indefinite'
 
@@ -589,15 +590,31 @@ def merge_intervals_optimized(df):
 
 
         if row['record_type'] == 'HOLDING':
+            print(row['serial_title'] + "-" + str(row['begin_year']) + "-" + str(row['end_year']))
             output_df = pd.concat([output_df, pd.DataFrame([row])], ignore_index=True)
         elif row['record_type'] == 'RANGE':
 
 
             if current_row is not None:
+
                 # if row['embargo_period']) == current_row['embargo_period'] and
                 if row['nlm_unique_id'] != current_row['nlm_unique_id'] or \
-                    row['holdings_format'] != current_row['holdings_format']:
+                    (row['nlm_unique_id'] == current_row['nlm_unique_id'] and row['holdings_format'] != current_row['holdings_format']):
                     output_df = pd.concat([output_df, pd.DataFrame([current_row])], ignore_index=True)
+
+
+
+
+                    current_row = row
+
+                elif row['nlm_unique_id'] == current_row['nlm_unique_id'] and \
+                    row['holdings_format'] == current_row['holdings_format'] and \
+                    current_row['end_year'] < row['begin_year']:
+
+                    output_df = pd.concat([output_df, pd.DataFrame([current_row])], ignore_index=True)
+
+
+
                     current_row = row
                 elif row['nlm_unique_id'] == current_row['nlm_unique_id'] and \
                     row['holdings_format'] == current_row['holdings_format'] and \
@@ -607,17 +624,24 @@ def merge_intervals_optimized(df):
                     if current_row['embargo_period'] != 0 and current_row['embargo_period'] is not None and right_effective_date > left_effective_date:
                         current_row['embargo_period'] = 0
                     output_df = pd.concat([output_df, pd.DataFrame([row])], ignore_index=True)
+                    current_row = row
+
 
                 elif row['nlm_unique_id'] == current_row['nlm_unique_id'] and \
                     row['holdings_format'] == current_row['holdings_format'] and \
                     row['begin_year'] <= current_row['end_year'] and \
                     row['embargo_period'] != current_row['embargo_period']:
+
                     left_effective_date=row['end_year'] - ((row['embargo_period'] / 12))
                     right_effective_date=current_row['end_year'] - ((current_row['embargo_period'] / 12))
                     if left_effective_date > right_effective_date:
+
+
                         current_row['end_year'] = row['end_year']
                         current_row['embargo_period'] = row['embargo_period']
                     elif left_effective_date == right_effective_date and current_row['embargo_period'] > row['embargo_period']:
+
+
                         left_embargo_period = row['embargo_period']
                         right_embargo_period  = current_row['embargo_period']
 
@@ -625,12 +649,15 @@ def merge_intervals_optimized(df):
                             current_row['end_year'] = row['end_year']
                             current_row['embargo_period'] = row['embargo_period']
 
+
                 elif row['nlm_unique_id'] == current_row['nlm_unique_id'] and \
                     row['holdings_format'] == current_row['holdings_format'] and \
                     row['begin_year'] <= current_row['end_year'] and \
                     row['embargo_period'] == current_row['embargo_period']:
+
                     # Extend the current range if overlapping
                     current_row['end_year'] = max(current_row['end_year'], row['end_year'])
+
 
                      # elif elif row['nlm_unique_id'] == current_row['nlm_unique_id'] and
                      #     row['holdings_format'] == current_row['holdings_format'] and
@@ -640,7 +667,9 @@ def merge_intervals_optimized(df):
                      #     current_row['end_year'] = max(current_row['end_year'], row['end_year'])
 
             else:
+
                 current_row = row
+
 
                 #output_df = pd.concat([output_df, pd.DataFrame([row])], ignore_index=True)
     # Append the last range row if it exists
@@ -648,9 +677,6 @@ def merge_intervals_optimized(df):
         output_df=pd.concat([output_df, pd.DataFrame([current_row])], ignore_index=True)
 
     return output_df
-
-
-
 
 def merge(alma_nlm_merge_df, existing_docline_df):
     #####################################################
@@ -1294,10 +1320,16 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     counts_df = pd.concat([counts_df, pd.DataFrame({'Set': 'Deleted from Alma', 'Number of Rows': len(deleted_output_df), 'Number of NLM Unique IDs': len(pd.unique(deleted_output_df['nlm_unique_id']))}, index=[0])])
 
 
+
     merged_updated_df.loc[(merged_updated_df['record_type'] == 'RANGE') & (merged_updated_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_period', 'limited_retention_type', 'embargo_period', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = np.nan
+    print(merged_updated_df)
     full_match_output_df.loc[(full_match_output_df['record_type'] == 'RANGE') & (full_match_output_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_period', 'limited_retention_type', 'embargo_period', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = np.nan
 
     different_ranges_alma_output_df.loc[(different_ranges_alma_output_df['record_type'] == 'RANGE') & (different_ranges_alma_output_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_period', 'limited_retention_type', 'embargo_period', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = np.nan
+
+    # merged_updated_df['limited_retention_period', 'embargo_period'] = merged_updated_df['limited_retention_period', 'embargo_period'].astype('Int32')
+    # full_match_output_df['limited_retention_period', 'embargo_period'] = full_match_output_df['limited_retention_period', 'embargo_period'].astype('Int32')
+    # different_ranges_alma_output_df['limited_retention_period', 'embargo_period'] = different_ranges_alma_output_df['limited_retention_period', 'embargo_period'].astype('Int32')
 
     deleted_output_df.to_csv('Output/Delete Final - Either Withdrawn from Alma or ILL Not Allowed for E-Resources.csv', index=False)
     full_match_output_df.to_csv('Output/Full Match Final.csv', index=False)

@@ -105,6 +105,7 @@ def merge_intervals_optimized(df):
         output_df=pd.concat([output_df, pd.DataFrame([current_row])], ignore_index=True)
 
     return output_df
+    
 current_alma_df = pd.read_csv('Processing/compressed_before_optimization.csv', dtype={'begin_year': 'Int64', 'end_year': 'Int64', 'begin_volume': 'Int64', 'end_volume': 'Int64', 'nlm_unique_id': 'str'}, engine='python')
 
 current_alma_compressed_df = merge_intervals_optimized(current_alma_df.copy())
