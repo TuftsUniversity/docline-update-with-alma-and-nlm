@@ -24,6 +24,7 @@ import re
 #             yield elem
 #             elem.clear()
 def getNLMData(nlm_choice):
+
     #43-366
     start_time = time.time()
     filename = ""
@@ -125,7 +126,7 @@ def getNLMData(nlm_choice):
                 if x % 1000 == 0:
                     print(x)
 
-                    print(csv_data[x])
+                    # print(csv_data[x])
                 x += 1
 
 
@@ -139,7 +140,7 @@ def getNLMData(nlm_choice):
         #
 
 def getAnalyticsData():
-
+    print("get analytics data")
     files = glob.glob('Analytics/*.csv', recursive = True)
     #
     analytics_filename = files[0]
@@ -160,7 +161,7 @@ def groupAndMergeAlmaAndDocline(analytics_filename, choice):
     print("read")
 
     # 1. group by
-    print(df)
+    # print(df)
     if choice == "1":
         grouped_df = df.groupby(["Title", "MMS Id", "Network Number (OCoLC)", "ISSN", "Lifecycle", "Electronic or Physical"])["Coverage Information Combined"].apply(lambda x: ';'.join(x)).reset_index()
     elif choice == "2":
@@ -169,7 +170,7 @@ def groupAndMergeAlmaAndDocline(analytics_filename, choice):
     else:
         grouped_df = df.groupby(["Title", "MMS Id", "Network Number (OCoLC)", "ISSN", "Lifecycle", "Electronic or Physical"])["Coverage Information Combined"].apply(lambda x: ';'.join(x)).reset_index()
     print("complete groupby")
-    print(grouped_df)
+    # print(grouped_df)
 
 
 
@@ -316,7 +317,7 @@ def convert(merged_df, docline_df, choice):
 
     x = 0
     for idx, row in merged_df.iterrows():
-        if x % 100 == 0:
+        if x % 500 == 0:
             print(str(row['Title_x']) + "--" + str(row['ISSN_x']))
         x += 1
 
@@ -353,8 +354,8 @@ def convert(merged_df, docline_df, choice):
 
 
         embargo_years = str(row['Embargo Years']).split(',')
-        if x % 100 == 0:
-            print(str(row['Title_x']) + "--" + str(row['ISSN_x']))
+        # if x % 100 == 0:
+        #     print(str(row['Title_x']) + "--" + str(row['ISSN_x']))
 
         x += 1
 
@@ -477,8 +478,8 @@ def prepare(alma_nlm_merge_df, docline_df, print_or_electronic_choice):
 
     alma_nlm_merge_df = alma_nlm_merge_df[(~alma_nlm_merge_df.isnull()['nlm_unique_id'] & alma_nlm_merge_df['record_type'].isin(['HOLDING'])) | ((alma_nlm_merge_df['record_type'].isin(['RANGE'])) & (~alma_nlm_merge_df.isnull()['begin_year']))].reset_index(drop=True)
 
-    # alma_nlm_merge_df[['begin_year', 'end_year']] = alma_nlm_merge_df[['begin_year', 'end_year']].astype('float')
-    # alma_nlm_merge_df[['begin_year', 'end_year']] = alma_nlm_merge_df[['begin_year', 'end_year']].astype('Int64')
+    # alma_nlm_merge_df.loc[:,[begin_year', 'end_year']] = alma_nlm_merge_df.loc[:,[begin_year', 'end_year']].astype('float')
+    # alma_nlm_merge_df.loc[:,[begin_year', 'end_year']] = alma_nlm_merge_df.loc[:,[begin_year', 'end_year']].astype('Int64')
     #
 
     # note so that the docline data can be treated as a real, valid table
@@ -590,7 +591,7 @@ def merge_intervals_optimized(df):
 
 
         if row['record_type'] == 'HOLDING':
-            print(row['serial_title'] + "-" + str(row['begin_year']) + "-" + str(row['end_year']))
+            #print(row['serial_title'] + "-" + str(row['begin_year']) + "-" + str(row['end_year']))
             output_df = pd.concat([output_df, pd.DataFrame([row])], ignore_index=True)
         elif row['record_type'] == 'RANGE':
 
@@ -921,7 +922,12 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     all_columns.remove('end_volume')
     all_columns.remove('action')
     all_columns.remove('ignore_warnings')
-    all_columns.remove('libid')
+    try:
+        all_columns.remove('libid')
+
+
+    except:
+        libid = ""
     all_columns.remove('serial_title')
     for column in all_columns:
         if column in ['begin_year', 'end_year', 'embargo_period']:
@@ -1321,23 +1327,105 @@ def merge(alma_nlm_merge_df, existing_docline_df):
 
 
 
-    merged_updated_df.loc[(merged_updated_df['record_type'] == 'RANGE') & (merged_updated_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_period', 'limited_retention_type', 'embargo_period', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = np.nan
-    print(merged_updated_df)
-    full_match_output_df.loc[(full_match_output_df['record_type'] == 'RANGE') & (full_match_output_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_period', 'limited_retention_type', 'embargo_period', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = np.nan
 
-    different_ranges_alma_output_df.loc[(different_ranges_alma_output_df['record_type'] == 'RANGE') & (different_ranges_alma_output_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_period', 'limited_retention_type', 'embargo_period', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = np.nan
+    full_match_output_df.to_csv('Output/Full Match Final.csv', index=False)
+    merged_updated_df.to_csv('Output/Update Final.csv', index=False)
+    #different_ranges_docline_output_df.to_csv('Output/Different Ranges Docline Final.csv', index=False)
+    different_ranges_alma_output_df.to_csv('Output/Different Ranges Alma Final.csv', index=False)
+    #
 
-    # merged_updated_df['limited_retention_period', 'embargo_period'] = merged_updated_df['limited_retention_period', 'embargo_period'].astype('Int32')
-    # full_match_output_df['limited_retention_period', 'embargo_period'] = full_match_output_df['limited_retention_period', 'embargo_period'].astype('Int32')
-    # different_ranges_alma_output_df['limited_retention_period', 'embargo_period'] = different_ranges_alma_output_df['limited_retention_period', 'embargo_period'].astype('Int32')
+
+
+    merged_updated_df = pd.read_csv('Output/Update Final.csv', engine="python")#dtype={'begin_year': 'Int64', 'end_year': 'Int64', 'begin_volume': 'Int64', 'end_volume': 'Int64', 'nlm_unique_id': 'str'}, engine="python")
+    full_match_output_df = pd.read_csv('Output/Full Match Final.csv', engine="python")#dtype={'begin_year': 'Int64', 'end_year': 'Int64', 'begin_volume': 'Int64', 'end_volume': 'Int64', 'nlm_unique_id': 'str'}, engine="python")
+    #different_ranges_alma_output_df = pd.read_csv('Output/Different Ranges Alma Final.csv', engine="python")#dtype={'begin_year': 'Int64', 'end_year': 'Int64', 'begin_volume': 'Int64', 'end_volume': 'Int64', 'nlm_unique_id': 'str'}, engine="python")
+    merged_updated_df[['begin_year', 'end_year', 'begin_volume', 'end_volume']] = merged_updated_df[['begin_year', 'end_year', 'begin_volume', 'end_volume']].astype('Int64')
+
+    #merged_updated_df.loc[(merged_updated_df['record_type'] == 'RANGE') & (merged_updated_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_period', 'limited_retention_type', 'embargo_period', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = ""
+    cols_to_convert = ['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']
+
+    merged_updated_df[cols_to_convert] = merged_updated_df[cols_to_convert].apply(pd.to_numeric, errors='coerce')
+    merged_updated_df[cols_to_convert] = merged_updated_df[cols_to_convert].astype("Int64")
+    merged_updated_df[cols_to_convert] = merged_updated_df[cols_to_convert].replace(0, np.nan)
+
+    full_match_output_df[cols_to_convert] = full_match_output_df[cols_to_convert].apply(pd.to_numeric, errors='coerce')
+    full_match_output_df[cols_to_convert] = full_match_output_df[cols_to_convert].astype("Int64")
+    full_match_output_df[cols_to_convert] = full_match_output_df[cols_to_convert].replace(0, np.nan)
+
+    different_ranges_alma_output_df[cols_to_convert] = different_ranges_alma_output_df[cols_to_convert].apply(pd.to_numeric, errors='coerce')
+    different_ranges_alma_output_df[cols_to_convert] = different_ranges_alma_output_df[cols_to_convert].astype("Int64")
+    different_ranges_alma_output_df[cols_to_convert] = different_ranges_alma_output_df[cols_to_convert].replace(0, np.nan)
+
+
+
+    merged_updated_df.loc[(merged_updated_df['record_type'] == 'RANGE') & (merged_updated_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = np.nan
+    #full_match_output_df.loc[(merged_updated_df['record_type'] == 'RANGE') & (merged_updated_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = ""
+    different_ranges_alma_output_df.loc[(merged_updated_df['record_type'] == 'RANGE') & (merged_updated_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = np.nan
+
+    full_match_output_df.to_csv('Output/Full Match Final.csv', index=False)
+    merged_updated_df.to_csv('Output/Update Final.csv', index=False)
+    merged_updated_df.to_csv('Output/Update Final1.csv', index=False)
+
+    #different_ranges_docline_output_df.to_csv('Output/Different Ranges Docline Final.csv', index=False)
+    different_ranges_alma_output_df.to_csv('Output/Different Ranges Alma Final.csv', index=False)
+    #
+    #full_match_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']] = full_match_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']].astype('Int64')
+    #different_ranges_alma_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']] = different_ranges_alma_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']].astype('Int64')
+
+    #full_match_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']] = full_match_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']].astype('Int64')
+    #different_ranges_alma_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']] = different_ranges_alma_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']].astype('Int64')
+
+    # merged_updated_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = merged_updated_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']].astype('str')
+    # full_match_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = full_match_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']].astype('str')
+    # different_ranges_alma_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = merged_updated_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']].astype('str')
+
+    #merged_updated_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = merged_updated_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']].astype('str')
+    #full_match_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = full_match_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']].astype('str')
+    #different_ranges_alma_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = different_ranges_alma_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']].astype('str')
+
+
+
+    #full_match_output_df.loc[(full_match_output_df['record_type'] == 'RANGE') & (full_match_output_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = ""
+    #different_ranges_alma_output_df.loc[(different_ranges_alma_output_df['record_type'] == 'RANGE') & (different_ranges_alma_output_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = ""
+
+
+    #merged_updated_df.to_csv('Output/Update Final1.csv', index=False)
+    #full_match_output_df.to_csv('Output/Full Match Final1.csv', index=False)
+    #different_ranges_alma_output_df.to_csv('Output/Different Ranges Alma1.csv', index=False)
+
 
     deleted_output_df.to_csv('Output/Delete Final - Either Withdrawn from Alma or ILL Not Allowed for E-Resources.csv', index=False)
+
     full_match_output_df.to_csv('Output/Full Match Final.csv', index=False)
     merged_updated_df.to_csv('Output/Update Final.csv', index=False)
     different_ranges_docline_output_df.to_csv('Output/Different Ranges Docline Final.csv', index=False)
     different_ranges_alma_output_df.to_csv('Output/Different Ranges Alma Final.csv', index=False)
     in_docline_only_preserve_df = in_docline_only_preserve_df.reset_index()
     counts_df = pd.concat([counts_df, pd.DataFrame({'Set': 'In Docline Only Keep', 'Number of Rows': len(in_docline_only_preserve_df), 'Number of NLM Unique IDs': len(pd.unique(in_docline_only_preserve_df['nlm_unique_id']))}, index=[0])])
+
+# merged_updated_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']] = merged_updated_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']].astype('Int64')
+    # full_match_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']] = full_match_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']].astype('Int64')
+    # different_ranges_alma_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']] = different_ranges_alma_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']].astype('Int64')
+    #
+    # merged_updated_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = merged_updated_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']].astype('str')
+    # full_match_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = full_match_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']].astype('str')
+    # different_ranges_alma_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = different_ranges_alma_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']].astype('str')
+    #
+    # merged_updated_df.loc[(merged_updated_df['record_type'] == 'RANGE') & (merged_updated_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = ""
+    # full_match_output_df.loc[(full_match_output_df['record_type'] == 'RANGE') & (full_match_output_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = ""
+    # different_ranges_alma_output_df.loc[(different_ranges_alma_output_df['record_type'] == 'RANGE') & (different_ranges_alma_output_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = ""
+    #
+    #
+    #
+    # print(merged_updated_df)
+    # print(merged_updated_df.dtypes)
+
+    #'begin_year': 'Int64', 'end_year': 'Int64', 'begin_volume': 'Int64', 'end_volume': 'Int64', 'nlm_unique_id': 'str'
+
+    # merged_updated_df['limited_retention_period', 'embargo_period'] = merged_updated_df['limited_retention_period', 'embargo_period'].astype('Int32')
+    # full_match_output_df['limited_retention_period', 'embargo_period'] = full_match_output_df['limited_retention_period', 'embargo_period'].astype('Int32')
+    # different_ranges_alma_output_df['limited_retention_period', 'embargo_period'] = different_ranges_alma_output_df['limited_retention_period', 'embargo_period'].astype('Int32')
+
 
     try:
         in_docline_only_preserve_df = in_docline_only_preserve_df.drop('index', axis=1)

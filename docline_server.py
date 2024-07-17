@@ -3,6 +3,9 @@ import numpy as np
 import time
 import os
 import sys
+
+sys.path.append('scripts/')
+from functions import *
 sys.path.append('secrets_local/')
 import secrets_local
 import xml.etree.ElementTree as et
@@ -15,8 +18,7 @@ import csv
 import io
 from bs4 import BeautifulSoup
 import glob
-sys.path.append('scripts/')
-from functions import *
+
 from datetime import datetime
 
 startTime = datetime.now()
