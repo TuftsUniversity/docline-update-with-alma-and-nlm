@@ -1364,8 +1364,7 @@ def merge(alma_nlm_merge_df, existing_docline_df):
 
     full_match_output_df.to_csv('Output/Full Match Final.csv', index=False)
     merged_updated_df.to_csv('Output/Update Final.csv', index=False)
-    merged_updated_df.to_csv('Output/Update Final1.csv', index=False)
-
+    
     #different_ranges_docline_output_df.to_csv('Output/Different Ranges Docline Final.csv', index=False)
     different_ranges_alma_output_df.to_csv('Output/Different Ranges Alma Final.csv', index=False)
     #
