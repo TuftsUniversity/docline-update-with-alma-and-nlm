@@ -45,12 +45,12 @@ def getNLMData(nlm_choice):
 
         full_nlm_serials_data_mrc = requests.get("https://ftp.nlm.nih.gov/projects/serfilebase/" + str(latest_file))
         filename = "marc_output_via_bs4_and_requests.mrc"
-        full_filename = oDir + "/" + filename
-        mrc_output = open(oDir + "/" + filename, "wb")
+        full_filename = "NLM/" + filename
+        mrc_output = open("NLM/" + filename, "wb")
         mrc_output.write(full_nlm_serials_data_mrc.content)
     elif nlm_choice == "2":
 
-        files = glob.glob('NLM/*.csv', recursive = True)
+        files = glob.glob('NLM/*.mrc', recursive = True)
 
         full_filename = files[0]
 
@@ -573,111 +573,131 @@ def apply_currently_received(updated_df):
 ####    the journal is shown to be not embargoed
 
 ####
+import pandas as pd
+import numpy as np
+
+import pandas as pd
+import numpy as np
+
 def merge_intervals_optimized(df):
-    # Sort the DataFrame
+    """
+    Merge overlapping or adjacent 'RANGE' holdings rows in a DataFrame,
+    accounting for embargo periods and grouping by (nlm_unique_id, holdings_format).
 
-    df.sort_values(by=['nlm_unique_id', 'holdings_format', 'record_type', 'begin_year', 'end_year', 'embargo_period'], ascending=[True, True, True, True, True, True], inplace=True)
-    # Using 10000 to represent 'indefinite'
+    'HOLDING' rows are passed through unchanged.
 
-    df.loc[df['record_type'] == 'RANGE', 'end_year'] = df.loc[df['record_type'] == 'RANGE', 'end_year'].fillna(10000)
+    Logic:
+    - A RANGE with end_year == 10000 is treated as open-ended ("infinite").
+    - An open-ended range only extends the current merged range if it overlaps
+      or directly abuts (no gap).
+    - Embargo periods are respected when determining effective coverage.
+    """
 
+    # -------------------------------------------------------------------------
+    # 1. Normalize and sort
+    # -------------------------------------------------------------------------
+    df = df.sort_values(
+        by=['nlm_unique_id', 'holdings_format', 'record_type',
+            'begin_year', 'end_year', 'embargo_period'],
+        ascending=[True, True, True, True, True, True]
+    ).copy()
 
-    output_df = pd.DataFrame(columns=df.columns)
+    # Treat missing end_year as open-ended
+    df.loc[df['record_type'] == 'RANGE', 'end_year'] = (
+        df.loc[df['record_type'] == 'RANGE', 'end_year'].fillna(10000)
+    )
+
+    output_rows = []
     current_row = None
 
+    def effective_end(row):
+        embargo = row['embargo_period'] or 0
+        return row['end_year'] - (embargo / 12.0)
 
-    # df = df.fillna(np.nan)
+    # -------------------------------------------------------------------------
+    # 2. Merge iteration
+    # -------------------------------------------------------------------------
     for _, row in df.iterrows():
 
-
+        # HOLDING rows pass through
         if row['record_type'] == 'HOLDING':
-            #print(row['serial_title'] + "-" + str(row['begin_year']) + "-" + str(row['end_year']))
-            output_df = pd.concat([output_df, pd.DataFrame([row])], ignore_index=True)
-        elif row['record_type'] == 'RANGE':
+            output_rows.append(row)
+            continue
 
+        if current_row is None:
+            current_row = row
+            continue
 
-            if current_row is not None:
+        # Different journal/format → flush current_row
+        if (row['nlm_unique_id'] != current_row['nlm_unique_id'] or
+            row['holdings_format'] != current_row['holdings_format']):
+            output_rows.append(current_row)
+            current_row = row
+            continue
 
-                # if row['embargo_period']) == current_row['embargo_period'] and
-                if row['nlm_unique_id'] != current_row['nlm_unique_id'] or \
-                    (row['nlm_unique_id'] == current_row['nlm_unique_id'] and row['holdings_format'] != current_row['holdings_format']):
-                    output_df = pd.concat([output_df, pd.DataFrame([current_row])], ignore_index=True)
+        left_eff = effective_end(row)
+        right_eff = effective_end(current_row)
 
+        # ---------------------------------------------------------------------
+        # Case A: Non-overlapping (gap) → finalize current_row, start new one
+        # ---------------------------------------------------------------------
+        if row['begin_year'] > current_row['end_year']:
+            output_rows.append(current_row)
+            current_row = row
+            continue
 
+        # ---------------------------------------------------------------------
+        # Case B: Overlapping OR touching
+        # ---------------------------------------------------------------------
+        # Infinity rule applies only if overlapping or adjacent
+        # ---------------------------------------------------------------------
+        overlapping = row['begin_year'] <= current_row['end_year'] + 1
 
+        if overlapping and row['end_year'] == 10000:
+            # Infinity extends the current range to 10000
+            current_row['end_year'] = 10000
+            current_row['embargo_period'] = row['embargo_period']
+            continue
 
-                    current_row = row
+        # ---------------------------------------------------------------------
+        # Case C: Overlapping, same embargo → extend
+        # ---------------------------------------------------------------------
+        if overlapping and row['embargo_period'] == current_row['embargo_period']:
+            current_row['end_year'] = max(current_row['end_year'], row['end_year'])
+            continue
 
-                elif row['nlm_unique_id'] == current_row['nlm_unique_id'] and \
-                    row['holdings_format'] == current_row['holdings_format'] and \
-                    current_row['end_year'] < row['begin_year']:
+        # ---------------------------------------------------------------------
+        # Case D: Overlapping, different embargo → prefer broader effective coverage
+        # ---------------------------------------------------------------------
+        if overlapping:
+            if left_eff > right_eff:
+                current_row['end_year'] = row['end_year']
+                current_row['embargo_period'] = row['embargo_period']
+            elif np.isclose(left_eff, right_eff):
+                if row['embargo_period'] < current_row['embargo_period']:
+                    current_row['end_year'] = row['end_year']
+                    current_row['embargo_period'] = row['embargo_period']
+            continue
 
-                    output_df = pd.concat([output_df, pd.DataFrame([current_row])], ignore_index=True)
+        # ---------------------------------------------------------------------
+        # Otherwise, they’re truly disjoint (shouldn't merge)
+        # ---------------------------------------------------------------------
+        output_rows.append(current_row)
+        current_row = row
 
+    # -------------------------------------------------------------------------
+    # 3. Append last range
+    # -------------------------------------------------------------------------
+    if current_row is not None:
+        output_rows.append(current_row)
 
-
-                    current_row = row
-                elif row['nlm_unique_id'] == current_row['nlm_unique_id'] and \
-                    row['holdings_format'] == current_row['holdings_format'] and \
-                    row['begin_year'] > current_row['end_year']:
-                    left_effective_date=row['end_year'] - ((row['embargo_period'] / 12))
-                    right_effective_date=current_row['end_year'] - ((current_row['embargo_period'] / 12))
-                    if current_row['embargo_period'] != 0 and current_row['embargo_period'] is not None and right_effective_date > left_effective_date:
-                        current_row['embargo_period'] = 0
-                    output_df = pd.concat([output_df, pd.DataFrame([row])], ignore_index=True)
-                    current_row = row
-
-
-                elif row['nlm_unique_id'] == current_row['nlm_unique_id'] and \
-                    row['holdings_format'] == current_row['holdings_format'] and \
-                    row['begin_year'] <= current_row['end_year'] and \
-                    row['embargo_period'] != current_row['embargo_period']:
-
-                    left_effective_date=row['end_year'] - ((row['embargo_period'] / 12))
-                    right_effective_date=current_row['end_year'] - ((current_row['embargo_period'] / 12))
-                    if left_effective_date > right_effective_date:
-
-
-                        current_row['end_year'] = row['end_year']
-                        current_row['embargo_period'] = row['embargo_period']
-                    elif left_effective_date == right_effective_date and current_row['embargo_period'] > row['embargo_period']:
-
-
-                        left_embargo_period = row['embargo_period']
-                        right_embargo_period  = current_row['embargo_period']
-
-                        if left_embargo_period < right_embargo_period:
-                            current_row['end_year'] = row['end_year']
-                            current_row['embargo_period'] = row['embargo_period']
-
-
-                elif row['nlm_unique_id'] == current_row['nlm_unique_id'] and \
-                    row['holdings_format'] == current_row['holdings_format'] and \
-                    row['begin_year'] <= current_row['end_year'] and \
-                    row['embargo_period'] == current_row['embargo_period']:
-
-                    # Extend the current range if overlapping
-                    current_row['end_year'] = max(current_row['end_year'], row['end_year'])
-
-
-                     # elif elif row['nlm_unique_id'] == current_row['nlm_unique_id'] and
-                     #     row['holdings_format'] == current_row['holdings_format'] and
-                     #     row['begin_year'] > current_row['end_year']:
-                     #     #row['embargo_period']) == current_row['embargo_period']:
-                     #
-                     #     current_row['end_year'] = max(current_row['end_year'], row['end_year'])
-
-            else:
-
-                current_row = row
-
-
-                #output_df = pd.concat([output_df, pd.DataFrame([row])], ignore_index=True)
-    # Append the last range row if it exists
-    if current_row is not None and current_row['record_type'] == 'RANGE':
-        output_df=pd.concat([output_df, pd.DataFrame([current_row])], ignore_index=True)
-
+    # -------------------------------------------------------------------------
+    # 4. Return merged DataFrame
+    # -------------------------------------------------------------------------
+    output_df = pd.DataFrame(output_rows, columns=df.columns)
     return output_df
+
+
 
 def merge(alma_nlm_merge_df, existing_docline_df):
     #####################################################
@@ -898,8 +918,11 @@ def merge(alma_nlm_merge_df, existing_docline_df):
 
     # These are the Alma records to add to Docline, because they are not
     # in current Docline holdings by NLM Unique ID
-    add_df = matched_base_df_alma_side.copy()
-    add_df = current_alma_df[~current_alma_df.set_index(['nlm_unique_id', 'holdings_format']).index.isin(existing_docline_df_for_compare.set_index(['nlm_unique_id', 'holdings_format']).index)]
+    # Use compressed ranges for "totally new" titles too
+    add_df = current_alma_compressed_df[
+      ~current_alma_compressed_df.set_index(['nlm_unique_id', 'holdings_format']).index
+      .isin(existing_docline_df_for_compare.set_index(['nlm_unique_id', 'holdings_format']).index)
+    ]
 
 
     # These are the Docline records that did not match to NLM-enriched Alma
