@@ -5,7 +5,7 @@ import os
 import sys
 
 sys.path.append('scripts/')
-from functions import *
+from functions_rewritten_final import *
 sys.path.append('secrets_local/')
 import secrets_local
 import xml.etree.ElementTree as et

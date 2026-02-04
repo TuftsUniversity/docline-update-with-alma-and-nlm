@@ -488,11 +488,11 @@ def prepare(alma_nlm_merge_df, docline_df, print_or_electronic_choice):
     # immediately following the HOLDING line.
     # this way they can be sorted
 
-    files_docline = glob.glob('Docline/*', recursive = True)
+    # files_docline = glob.glob('Docline/*', recursive = True)
 
-    docline_filename = files_docline[0]
-    # Load the Docline CSV file
-    docline_df = pd.read_csv(docline_filename, dtype={'begin_year': 'Int64', 'end_year': 'Int64', 'begin_volume': 'Int64', 'end_volume': 'Int64', 'nlm_unique_id': 'str'}, engine='python')
+    # docline_filename = files_docline[0]
+    # # Load the Docline CSV file
+    # docline_df = pd.read_csv(docline_filename, dtype={'begin_year': 'Int64', 'end_year': 'Int64', 'begin_volume': 'Int64', 'end_volume': 'Int64', 'nlm_unique_id': 'str'}, engine='python')
 
 
     # Function to apply values in RANGE rows associated with holdings
@@ -1181,7 +1181,7 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     no_dates_df = different_ranges_alma_output_df.copy()
 
     no_dates_df = different_ranges_alma_output_df[different_ranges_alma_output_df['begin_year'].isna()]
-
+    no_dates_df = no_dates_df.drop(columns=['libid'], errors='ignore')
     no_dates_df.to_csv("Output/No Dates in Update Table.xlsx")
     different_ranges_alma_output_df = different_ranges_alma_output_df.sort_values(by = ['nlm_unique_id', 'holdings_format', 'action', 'record_type', 'embargo_period', 'begin_year', 'end_year'], ascending = [True, True, False, True, True, True, True], na_position = 'first')
 
@@ -1261,199 +1261,101 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     in_docline_only_preserve_df = in_docline_only_preserve_df.sort_values(by = ['serial_title', 'nlm_unique_id', 'begin_year', 'end_year'], ascending = [True, True, True, True], na_position = 'first')
 
 
-    try:
-        add_df = add_df.drop('index', axis=1)
+   
 
-    except:
-
-        print('index already removed')
-    try:
-        deleted_output_df = deleted_output_df.drop('index', axis=1)
-        print(nothing)
-    except:
-        print('index already removed')
-
-    try:
-        deleted_output_df = deleted_output_df.drop('Bibliographic Lifecycle', axis=1)
-
-    except:
-        "Bibliographic Lifecycle column already removed"
-    try:
-        full_match_output_df = full_match_output_df.drop('index', axis=1)
-
-    except:
-        print('index already removed')
-
-    try:
-        merged_updated_df = merged_updated_df.drop('Lifecycle', axis=1)
-
-    except:
-        print("Lifecycle column already removed")
-    try:
-        merged_updated_df = merged_updated_df.drop('level_0', axis=1)
-    except:
-        print("level 0 already removed")
-
-    try:
-        merged_updated_df = merged_updated_df.drop('Lifecycle', axis=1)
-
-    except:
-        print("Lifecycle column already removed")
-    try:
-        merged_updated_df = merged_updated_df.drop('Bibliographic Lifecycle', axis=1)
-
-    except:
-        print("Bibliographic Lifecycle column already removed")
-
-    try:
-        merged_updated_df = merged_updated_df.drop('libid', axis=1)
-
-    except:
-        print("libid column already removed")
-
-
-    try:
-        add_df = add_df.drop('level_0', axis=1)
-    except:
-        print("level 0 already removed")
-    try:
-        add_df = add_df.drop('index', axis=1)
-    except:
-        print("index already removed")
-    try:
-        add_df = add_df.drop('Lifecycle', axis=1)
-
-    except:
-        print("Lifecycle column already removed")
-
-    try:
-        add_df = add_df.drop('Bibliographic Lifecycle', axis=1)
-
-    except:
-        print("Bibliographic Lifecycle column already removed")
-
-        try:
-            merged_updated_df = merged_updated_df.drop('libid', axis=1)
-
-        except:
-            print("libid column already removed")
-
-    add_df.to_csv('Output/Add Final.csv', index=False)
-
-
-    try:
-        merged_updated_df = merged_updated_df.drop('index', axis=1)
-
-    except:
-        "index column already removed"
+    print("Got through extraneous column removal")
     counts_df = pd.concat([counts_df, pd.DataFrame({'Set': 'Deleted from Alma', 'Number of Rows': len(deleted_output_df), 'Number of NLM Unique IDs': len(pd.unique(deleted_output_df['nlm_unique_id']))}, index=[0])])
 
 
 
 
-    full_match_output_df.to_csv('Output/Full Match Final.csv', index=False)
-    merged_updated_df.to_csv('Output/Update Final.csv', index=False)
-    #different_ranges_docline_output_df.to_csv('Output/Different Ranges Docline Final.csv', index=False)
-    different_ranges_alma_output_df.to_csv('Output/Different Ranges Alma Final.csv', index=False)
-    #
-
-
-
-    merged_updated_df = pd.read_csv('Output/Update Final.csv', engine="python")#dtype={'begin_year': 'Int64', 'end_year': 'Int64', 'begin_volume': 'Int64', 'end_volume': 'Int64', 'nlm_unique_id': 'str'}, engine="python")
-    full_match_output_df = pd.read_csv('Output/Full Match Final.csv', engine="python")#dtype={'begin_year': 'Int64', 'end_year': 'Int64', 'begin_volume': 'Int64', 'end_volume': 'Int64', 'nlm_unique_id': 'str'}, engine="python")
-    #different_ranges_alma_output_df = pd.read_csv('Output/Different Ranges Alma Final.csv', engine="python")#dtype={'begin_year': 'Int64', 'end_year': 'Int64', 'begin_volume': 'Int64', 'end_volume': 'Int64', 'nlm_unique_id': 'str'}, engine="python")
-    merged_updated_df[['begin_year', 'end_year', 'begin_volume', 'end_volume']] = merged_updated_df[['begin_year', 'end_year', 'begin_volume', 'end_volume']].astype('Int64')
-
-    #merged_updated_df.loc[(merged_updated_df['record_type'] == 'RANGE') & (merged_updated_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_period', 'limited_retention_type', 'embargo_period', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = ""
-    cols_to_convert = ['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']
-
-    merged_updated_df[cols_to_convert] = merged_updated_df[cols_to_convert].apply(pd.to_numeric, errors='coerce')
-    merged_updated_df[cols_to_convert] = merged_updated_df[cols_to_convert].astype("Int64")
-    merged_updated_df[cols_to_convert] = merged_updated_df[cols_to_convert].replace(0, np.nan)
-
-    full_match_output_df[cols_to_convert] = full_match_output_df[cols_to_convert].apply(pd.to_numeric, errors='coerce')
-    full_match_output_df[cols_to_convert] = full_match_output_df[cols_to_convert].astype("Int64")
-    full_match_output_df[cols_to_convert] = full_match_output_df[cols_to_convert].replace(0, np.nan)
-
-    different_ranges_alma_output_df[cols_to_convert] = different_ranges_alma_output_df[cols_to_convert].apply(pd.to_numeric, errors='coerce')
-    different_ranges_alma_output_df[cols_to_convert] = different_ranges_alma_output_df[cols_to_convert].astype("Int64")
-    different_ranges_alma_output_df[cols_to_convert] = different_ranges_alma_output_df[cols_to_convert].replace(0, np.nan)
-
-
-
-    merged_updated_df.loc[(merged_updated_df['record_type'] == 'RANGE') & (merged_updated_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = np.nan
-    #full_match_output_df.loc[(merged_updated_df['record_type'] == 'RANGE') & (merged_updated_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = ""
-    different_ranges_alma_output_df.loc[(merged_updated_df['record_type'] == 'RANGE') & (merged_updated_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = np.nan
-
-    full_match_output_df.to_csv('Output/Full Match Final.csv', index=False)
-    merged_updated_df.to_csv('Output/Update Final.csv', index=False)
     
-    #different_ranges_docline_output_df.to_csv('Output/Different Ranges Docline Final.csv', index=False)
-    different_ranges_alma_output_df.to_csv('Output/Different Ranges Alma Final.csv', index=False)
-    #
-    #full_match_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']] = full_match_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']].astype('Int64')
-    #different_ranges_alma_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']] = different_ranges_alma_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']].astype('Int64')
-
-    #full_match_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']] = full_match_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']].astype('Int64')
-    #different_ranges_alma_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']] = different_ranges_alma_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']].astype('Int64')
-
-    # merged_updated_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = merged_updated_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']].astype('str')
-    # full_match_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = full_match_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']].astype('str')
-    # different_ranges_alma_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = merged_updated_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']].astype('str')
-
-    #merged_updated_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = merged_updated_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']].astype('str')
-    #full_match_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = full_match_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']].astype('str')
-    #different_ranges_alma_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = different_ranges_alma_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']].astype('str')
+    # ---------------------------------------------------------------------
+    # Final cleanup / typing / output
+    # ---------------------------------------------------------------------
+    pd.options(max_columns=None )
+    print(add_df)
 
 
+    # # For ADD RANGE rows, clear holding-level metadata fields (Docline expects blanks)
+    # add_range_mask = (merged_updated_df.get('record_type') == 'RANGE') & (merged_updated_df.get('action') == 'ADD')
+    # cols_blank = [
+    #     'serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received',
+    #     'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print',
+    #     'has_supplements', 'ignore_warnings', 'last_modified'
+    # ]
+    # for df in (merged_updated_df, different_ranges_alma_output_df, full_match_output_df):
+    #     if df is None or not hasattr(df, 'columns'):
+    #         continue
+    #     if 'record_type' in df.columns and 'action' in df.columns:
+    #         m = (df['record_type'] == 'RANGE') & (df['action'] == 'ADD')
+    #         existing = [c for c in cols_blank if c in df.columns]
+    #         if existing:
+    #             df.loc[m, existing] = np.nan
 
-    #full_match_output_df.loc[(full_match_output_df['record_type'] == 'RANGE') & (full_match_output_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = ""
-    #different_ranges_alma_output_df.loc[(different_ranges_alma_output_df['record_type'] == 'RANGE') & (different_ranges_alma_output_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = ""
+    # # Normalize numeric-ish columns (only where present)
+    # cols_to_convert = ['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']
+    # def _coerce_numeric_cols(df):
+    #     if df is None or not hasattr(df, 'columns'):
+    #         return df
+    #     present = [c for c in cols_to_convert if c in df.columns]
+    #     if not present:
+    #         return df
+    #     df[present] = df[present].apply(pd.to_numeric, errors='coerce').astype('Int64')
+    #     # treat zeros as blank (matches prior behavior)
+    #     df[present] = df[present].replace(0, np.nan)
+    #     return df
 
+    # merged_updated_df = _coerce_numeric_cols(merged_updated_df)
+    # full_match_output_df = _coerce_numeric_cols(full_match_output_df)
+    # different_ranges_docline_output_df = _coerce_numeric_cols(different_ranges_docline_output_df)
+    # different_ranges_alma_output_df = _coerce_numeric_cols(different_ranges_alma_output_df)
+    # add_df = _coerce_numeric_cols(add_df)
+    # deleted_output_df = _coerce_numeric_cols(deleted_output_df)
+    # in_docline_only_preserve_df = _coerce_numeric_cols(in_docline_only_preserve_df)
 
-    #merged_updated_df.to_csv('Output/Update Final1.csv', index=False)
-    #full_match_output_df.to_csv('Output/Full Match Final1.csv', index=False)
-    #different_ranges_alma_output_df.to_csv('Output/Different Ranges Alma1.csv', index=False)
+    # # Always drop libid everywhere (user request)
+    # def _drop_if_exists(df, col):
+    #     if df is not None and hasattr(df, 'columns') and col in df.columns:
+    #         return df.drop(col, axis=1)
+    #     return df
 
+    # for _name in [
+    #     'merged_updated_df', 'full_match_output_df', 'different_ranges_docline_output_df',
+    #     'different_ranges_alma_output_df', 'add_df', 'deleted_output_df', 'in_docline_only_preserve_df'
+    # ]:
+    #     locals()[_name] = _drop_if_exists(locals()[_name], 'libid')
 
-    deleted_output_df.to_csv('Output/Delete Final - Either Withdrawn from Alma or ILL Not Allowed for E-Resources.csv', index=False)
+    def _drop_if_exists(df, col):
+        if df is not None and hasattr(df, 'columns') and col in df.columns:
+            return df.drop(columns=[col], errors='ignore')
+        return df
 
+    add_df = _drop_if_exists(add_df, 'libid')
+    deleted_output_df = _drop_if_exists(deleted_output_df, 'libid')
+    full_match_output_df = _drop_if_exists(full_match_output_df, 'libid')
+    merged_updated_df = _drop_if_exists(merged_updated_df, 'libid')
+    different_ranges_docline_output_df = _drop_if_exists(different_ranges_docline_output_df, 'libid')
+    different_ranges_alma_output_df = _drop_if_exists(different_ranges_alma_output_df, 'libid')
+    in_docline_only_preserve_df = _drop_if_exists(in_docline_only_preserve_df, 'libid')
+
+    # Write final outputs (single write pass, after cleanup)
+    add_df.to_csv('Output/Add Final.csv', index=False)
     full_match_output_df.to_csv('Output/Full Match Final.csv', index=False)
     merged_updated_df.to_csv('Output/Update Final.csv', index=False)
     different_ranges_docline_output_df.to_csv('Output/Different Ranges Docline Final.csv', index=False)
     different_ranges_alma_output_df.to_csv('Output/Different Ranges Alma Final.csv', index=False)
-    in_docline_only_preserve_df = in_docline_only_preserve_df.reset_index()
+
+    # Preserve list + counts
+    in_docline_only_preserve_df = in_docline_only_preserve_df.reset_index(drop=True)
     counts_df = pd.concat([counts_df, pd.DataFrame({'Set': 'In Docline Only Keep', 'Number of Rows': len(in_docline_only_preserve_df), 'Number of NLM Unique IDs': len(pd.unique(in_docline_only_preserve_df['nlm_unique_id']))}, index=[0])])
-
-# merged_updated_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']] = merged_updated_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']].astype('Int64')
-    # full_match_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']] = full_match_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']].astype('Int64')
-    # different_ranges_alma_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']] = different_ranges_alma_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']].astype('Int64')
-    #
-    # merged_updated_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = merged_updated_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']].astype('str')
-    # full_match_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = full_match_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']].astype('str')
-    # different_ranges_alma_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = different_ranges_alma_output_df[['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']].astype('str')
-    #
-    # merged_updated_df.loc[(merged_updated_df['record_type'] == 'RANGE') & (merged_updated_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = ""
-    # full_match_output_df.loc[(full_match_output_df['record_type'] == 'RANGE') & (full_match_output_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = ""
-    # different_ranges_alma_output_df.loc[(different_ranges_alma_output_df['record_type'] == 'RANGE') & (different_ranges_alma_output_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = ""
-    #
-    #
-    #
-    # print(merged_updated_df)
-    # print(merged_updated_df.dtypes)
-
-    #'begin_year': 'Int64', 'end_year': 'Int64', 'begin_volume': 'Int64', 'end_volume': 'Int64', 'nlm_unique_id': 'str'
-
-    # merged_updated_df['limited_retention_period', 'embargo_period'] = merged_updated_df['limited_retention_period', 'embargo_period'].astype('Int32')
-    # full_match_output_df['limited_retention_period', 'embargo_period'] = full_match_output_df['limited_retention_period', 'embargo_period'].astype('Int32')
-    # different_ranges_alma_output_df['limited_retention_period', 'embargo_period'] = different_ranges_alma_output_df['limited_retention_period', 'embargo_period'].astype('Int32')
-
 
     try:
         in_docline_only_preserve_df = in_docline_only_preserve_df.drop('index', axis=1)
-
-    except:
-        print('index already removed')
+    except Exception:
+        pass
     in_docline_only_preserve_df.to_csv('Output/In Docline Only Preserve Final.csv', index=False)
 
     counts_df.to_excel('Output/Counts.xlsx', index=False)
+
+
