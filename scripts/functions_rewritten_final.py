@@ -816,6 +816,23 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     current_alma_df['embargo_period'] = pd.to_numeric(current_alma_df['embargo_period'], errors='coerce')
     current_alma_df['embargo_period'] = current_alma_df['embargo_period'].astype('Int64')
 
+        # ------------------------------------------------------------
+    # HARD VALIDATION: every RANGE row must have a begin_year
+    # If missing, send to error output and remove from processing
+    # ------------------------------------------------------------
+    error_missing_begin_year_df = current_alma_df[
+        (current_alma_df["record_type"] == "RANGE") & (current_alma_df["begin_year"].isna())
+    ].copy()
+
+    if not error_missing_begin_year_df.empty:
+        error_missing_begin_year_df["Error Message"] = (
+            "Could not read begin date of portfolio from coverage statement"
+        )
+        # remove these rows so merge_intervals_optimized won't choke on <NA>
+        current_alma_df = current_alma_df.drop(index=error_missing_begin_year_df.index)
+    else:
+        # keep it defined for the final output write pass
+        error_missing_begin_year_df = pd.DataFrame(columns=list(current_alma_df.columns) + ["Error Message"])
 
     current_alma_df.to_csv('Processing/compressed_before_optimization.csv', index=False)
 
@@ -1445,11 +1462,28 @@ def merge(alma_nlm_merge_df, existing_docline_df):
     add_df = _normalize_and_drop(add_df, DROP_COLS)
     no_dates_df = _normalize_and_drop(no_dates_df, DROP_COLS)
 
+    error_missing_begin_year_df = _normalize_and_drop(error_missing_begin_year_df, DROP_COLS)
+
     add_df['ignore_warnings'] = "Yes"
     full_match_output_df['ignore_warnings'] = "Yes"
     different_ranges_alma_output_df['ignore_warnings'] = "Yes"
     different_ranges_docline_output_df['ignore_warnings'] = "Yes"
     merged_updated_df['ignore_warnings'] = "Yes"
+        # Error output: missing begin_year in RANGE rows
+    if error_missing_begin_year_df is not None and not error_missing_begin_year_df.empty:
+        # Ensure Error Message column exists
+        if "Error Message" not in error_missing_begin_year_df.columns:
+            error_missing_begin_year_df["Error Message"] = (
+                "Could not read begin date of portfolio from coverage statement"
+            )
+
+        # Match Add/Update column order, then append Error Message
+        base_cols = list(add_df.columns)  # Add Final and Update Final share the same schema here
+        ordered_cols = [c for c in base_cols if c in error_missing_begin_year_df.columns]
+        error_out = error_missing_begin_year_df[ordered_cols + ["Error Message"]]
+
+        error_out.to_csv("Output/Error Final.csv", index=False)
+
     # Core CSV outputs
     add_df.to_csv("Output/Add Final.csv", index=False)
     full_match_output_df.to_csv("Output/Full Match Final.csv", index=False)
