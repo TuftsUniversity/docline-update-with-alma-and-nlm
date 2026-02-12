@@ -1,8 +1,13 @@
 beautifulsoup4==4.11.1
-lxml==4.6.2
-numpy==1.24.4
-pandas==2.0.3
-pymarc==5.1.0
-python_dateutil==2.8.2
-Requests==2.31.0
-scripts==2.0
+
+# Need 3.14 wheels (your old pin 4.6.2 will try to build from source)
+lxml==6.0.2
+
+# Need 3.14 wheels (your old pin 1.24.4 will try to build from source)
+numpy==2.3.3
+pandas==2.3.3
+
+pymarc>=5.2.0
+python-dateutil>=2.9.0.post0
+requests>=2.32.3
+openpyxl==3.1.5

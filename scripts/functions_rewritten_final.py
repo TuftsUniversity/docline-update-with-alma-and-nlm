@@ -313,9 +313,10 @@ def convert(merged_df, docline_df, choice):
 
     alma_nlm_merge_df['Lifecycle'] = ""
 
-    merged_df['ISSN_x'] = merged_df['ISSN_x'].astype(str)
 
 
+
+    merged_df['ISSN_x'] = merged_df['ISSN_x'].fillna("").astype(str)
 
 
     x = 0

@@ -29,7 +29,24 @@ to get as many matches based on identifiers as possible.  It then adds the NLM U
 ## Process
 
 install the Python libraries  with the requirements file:
-- python pip install -r requirements.txt
+- you may want to run this in a venv.
+- also you probably want to upgrade pip and wheel to download the files
+- python3 -m venv .venv
+- This is built to work with Python 3.14
+- check your python version : `python3 --version`
+- Windows:
+  - `.venv/Scripts/activate`
+  - now you should be in the venv 
+  - `python3 -m pip install --upgrade pip setuptools wheel`
+  - `python3 pip install -r requirements.txt`
+
+- Linux: 
+  - `python3 -m venv .venv`
+  - `.venv/bin/activate`
+  - `python3 -m pip install --upgrade pip setuptools wheel`
+  - `python3 pip install -r requirements.txt`
+
+-then run with the appropriate command line arguments as seen below
 
 You'll also need to specify local data that at Tufts was determined to be fixed in the Docline data in the secrets_local/secrets_local.py
 you can run the script with the following command:
@@ -44,10 +61,10 @@ you can run the script with the following command:
 	1-Print
         2-Electronic 
 - run the command python3 docline_server.py with these arguments
-- for instance if you already had the NLM serials file and you wanted to process electronic journals, you'd run python3 docline_server.py 3 2
+- for instance if you already had the NLM serials file and you wanted to process electronic journals, you'd run `python3 docline_server.py 3 2`
 - if you want to run this on a Linux server where it's faster you can use the nohup utility to run let it run after you are logged off
-	- sudo nohup python3 docline_server.py 3 2 &
-	- then type exit 
+	- `sudo nohup python3 docline_server.py 3 2 &`
+	- then type `exit `
 - 
 
 
