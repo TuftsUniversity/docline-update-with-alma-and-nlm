@@ -29,7 +29,7 @@ def getNLMData(nlm_choice):
     start_time = time.time()
     filename = ""
     if str(nlm_choice) == "1":
-        webpage = requests.get("https://ftp.nlm.nih.gov/projects/serfilebase")
+        webpage = requests.get("https://ftp.nlm.nih.gov/projects/serfilelease")
 
         soup = BeautifulSoup(webpage.content, "html.parser")
         dom = etree.HTML(str(soup))
@@ -38,12 +38,15 @@ def getNLMData(nlm_choice):
         # to the variable a in the last iteration of the loop
         for a in dom.xpath('//ul/li/a/@href'):
 
-            a = a
+            if re.match(r'.xml$', a):
+                continue
+            else:
+                a = a
 
         latest_file = a
 
 
-        full_nlm_serials_data_mrc = requests.get("https://ftp.nlm.nih.gov/projects/serfilebase/" + str(latest_file))
+        full_nlm_serials_data_mrc = requests.get("https://ftp.nlm.nih.gov/projects/serfilelease/" + str(latest_file))
         filename = "marc_output_via_bs4_and_requests.mrc"
         full_filename = "NLM/" + filename
         mrc_output = open("NLM/" + filename, "wb")
