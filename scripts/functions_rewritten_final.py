@@ -49,7 +49,7 @@ def getNLMData(nlm_choice):
         full_nlm_serials_data_mrc = requests.get("https://ftp.nlm.nih.gov/projects/serfilelease/" + str(latest_file))
         filename = "marc_output_via_bs4_and_requests.mrc"
         full_filename = "NLM/" + filename
-        mrc_output = open("NLM/" + filename, "wb")
+        mrc_output = open("NLM/" + filename + ".mrc", "wb")
         mrc_output.write(full_nlm_serials_data_mrc.content)
     elif nlm_choice == "2":
 
