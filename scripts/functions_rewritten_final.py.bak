@@ -37,17 +37,13 @@ def getNLMData(nlm_choice):
         # the last link will be the one that is assigned
         # to the variable a in the last iteration of the loop
         for a in dom.xpath('//ul/li/a/@href'):
-            print(a)
-            if re.match(r'^.+\.xml$', a):
-                print("skip" + a)
+
+            if re.match(r'.xml$', a):
                 continue
             else:
-                print("using file: " + a)
-                latest_file = a
+                a = a
 
-        
-
-        print("latest_file" + str(latest_file) )
+        latest_file = a
 
 
         full_nlm_serials_data_mrc = requests.get("https://ftp.nlm.nih.gov/projects/serfilelease/" + str(latest_file))
@@ -80,24 +76,10 @@ def getNLMData(nlm_choice):
             x = 0
 
             for record in reader:
-                
-                #Joe Ferguson edit
-                if record is None:
-                    # skip malformed or empty records gracefully
-                    continue
-                    
-                    # existing logic continues under this guard
-                
+
                 #print(record['245']['a'])
 
-                #original line: title = record['245']['a']
-                #Joe Ferguson edit
-                field_245 = record.get_fields('245')
-                if field_245:
-                    suba = field_245[0].get_subfields('a')
-                    title = suba[0].strip(" /:;") if suba else ""
-                else:
-                    title = ""
+                title = record['245']['a']
                 title = title.encode('utf-8').decode()
                 nlm_unique_id = record['001'].value()
                 oclc_number = "None"
@@ -115,7 +97,7 @@ def getNLMData(nlm_choice):
 
                         for each_value in value:
 
-                            if re.search(r"\(OCoLC\)", each_value):
+                            if re.search("\(OCoLC\)", each_value):
                                 oclc_list.append(re.sub(r'\(OCoLC\)\s*(\d+)', r'\1', each_value))
 
                     oclc_list = list(dict.fromkeys(oclc_list))
