@@ -90,7 +90,11 @@ return_list = prepare(alma_nlm_merge_df, docline_df, print_or_electronic_choice)
 alma_nlm_merge_df = return_list[0]
 existing_docline_df = return_list[1]
 
-merge(alma_nlm_merge_df, existing_docline_df)
+if print_or_electronic_choice == "1":
+    print_or_electronic_choice = "Print"
+elif print_or_electronic_choice == "2":
+    print_or_electronic_choice = "Electronic"
+merge(alma_nlm_merge_df, existing_docline_df, print_or_electronic_choice)
 
 print("Execution time:\t")
 print(datetime.now() - startTime)

@@ -173,18 +173,57 @@ def groupAndMergeAlmaAndDocline(analytics_filename, choice):
     df = pd.read_csv(analytics_filename, dtype={"MMS Id": "str", 'Network Number (OCoLC)': 'str'}, encoding='utf-8')
 
 
+    # Normalize holdings format to match the rest of the pipeline
+    df["Electronic or Physical"] = df["Electronic or Physical"].astype(str).str.strip()
+    df["Electronic or Physical"] = df["Electronic or Physical"].replace({"Physical": "Print"})
     df['Title'] = df['Title'].apply(lambda x: re.sub(r'\.$', r'', x))
     df['Title'] = df['Title'].apply(lambda x: re.sub(r'^(.+?)(\s\:|$)', r'\1', x))
 
-    df['Embargo Months'] = df['Embargo Months'].fillna(0)
-    df['Embargo Years'] = df['Embargo Years'].fillna(0)
+    # For Print holdings, embargo fields should be blank (not lists, not numbers)
+    
+    is_print = df["Electronic or Physical"].astype(str).eq("Print")
+    if is_print.any():
+        # Only blank embargo fields for Print rows
+        df.loc[is_print, "Embargo Months"] = ""
+        df.loc[is_print, "Embargo Years"] = ""
+
+        # For non-print, keep numeric-ish (or blank) safely
+        df.loc[~is_print, "Embargo Months"] = df.loc[~is_print, "Embargo Months"].fillna(0)
+        df.loc[~is_print, "Embargo Years"]  = df.loc[~is_print, "Embargo Years"].fillna(0)
+        # for col in ("Embargo Months", "Embargo Years"):
+        #     if col in df.columns:
+        #         df.loc[is_print, col] = ""
+    else:
+        df['Embargo Months'] = df['Embargo Months'].fillna(0)
+        df['Embargo Years'] = df['Embargo Years'].fillna(0)
 
     print("read")
 
     # 1. group by
     # print(df)
     if choice == "1":
-        grouped_df = df.groupby(["Title", "MMS Id", "Network Number (OCoLC)", "ISSN", "Lifecycle", "Electronic or Physical"])["Coverage Information Combined"].apply(lambda x: ';'.join(x)).reset_index()
+        df["MMS Id"] = df["MMS Id"].fillna("").astype(str)
+        df["Network Number (OCoLC)"] = df["Network Number (OCoLC)"].fillna("").astype(str)
+
+        # --- clean Summary Holdings BEFORE groupby ---
+        if "Summary Holdings" in df.columns:
+            # convert everything to string, treat NaN as empty, then filter empties
+            df["Summary Holdings"] = df["Summary Holdings"].fillna("").astype(str)
+            df = df[df["Summary Holdings"].str.strip().ne("")]
+
+    #// optional: if Summary Holdings is missing entirely, you may want grouped_df empty or raise
+
+        grouped_df = (
+            df.groupby(
+                ["Title", "MMS Id", "Network Number (OCoLC)", "ISSN", "Lifecycle", "Electronic or Physical"],
+                dropna=False,
+            )["Summary Holdings"]
+            # extra safety: filter blank strings inside each group
+            .apply(lambda s: ";".join(v for v in s.astype(str) if v.strip()))
+            .reset_index()
+        )
+    # Optional: if this block is ONLY for Print ingest, you can also enforce:
+    # df = df[df["Electronic or Physical"].astype(str).eq("Print")]
     elif choice == "2":
 
         grouped_df = df.groupby(["Title", "MMS Id", "Network Number (OCoLC)", "ISSN", "Lifecycle", "Electronic or Physical"], dropna=False).agg({"Coverage Information Combined": lambda x: ';'.join(x), 'Embargo Months': lambda x: str(x.tolist()), 'Embargo Years': lambda x: str(x.tolist())}).reset_index()
@@ -198,21 +237,34 @@ def groupAndMergeAlmaAndDocline(analytics_filename, choice):
     # 1. Explode on OCLC
 
     exploded_oclc_df = grouped_df.copy()
-    exploded_oclc_df['OCLC'] = exploded_oclc_df['Network Number (OCoLC)'].str.split(';')
-    #                                            Network Number (OCoLC)
-    exploded_oclc_df = exploded_oclc_df.explode('OCLC').reset_index(drop=True)
-    # print(exploded_oclc_df)
 
+    # Make OCLC a clean string before split/explode (removes .0 and NaN)
+    exploded_oclc_df["Network Number (OCoLC)"] = (
+        exploded_oclc_df["Network Number (OCoLC)"]
+        .fillna("")
+        .astype(str)
+        .str.replace(r"\.0$", "", regex=True)
+    )
 
-    exploded_oclc_df['OCLC'] = exploded_oclc_df['OCLC'].str.strip()
-    pd.set_option('display.max_columns', None)
-    # print(exploded_oclc_df.head(100))
+    exploded_oclc_df["OCLC"] = exploded_oclc_df["Network Number (OCoLC)"].str.split(";")
+    exploded_oclc_df = exploded_oclc_df.explode("OCLC").reset_index(drop=True)
 
-    exploded_oclc_df['OCLC'] = exploded_oclc_df['OCLC'].astype('string')
+    exploded_oclc_df["OCLC"] = (
+        exploded_oclc_df["OCLC"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.replace(r"^\(OCoLC\)\s*", "", regex=True)  # harmless if not present
+    )
 
+    # KEEP numeric OCLCs (do NOT require literal "OCoLC")
+    analytics_ocolc_df = exploded_oclc_df[
+        exploded_oclc_df["OCLC"].ne("") &
+        exploded_oclc_df["OCLC"].str.lower().ne("none") &
+        exploded_oclc_df["OCLC"].str.lower().ne("nan")
+    ].copy()
 
-    analytics_ocolc_df = exploded_oclc_df[exploded_oclc_df['OCLC'].str.contains("OCoLC")]
-
+    analytics_ocolc_df["OCLC"] = analytics_ocolc_df["OCLC"].astype("string")
 
     analytics_no_ocolc_df = exploded_oclc_df[~exploded_oclc_df['OCLC'].notna()]
 
@@ -324,152 +376,382 @@ def groupAndMergeAlmaAndDocline(analytics_filename, choice):
     return merged_df
 
 def convert(merged_df, docline_df, choice):
+    """
+    Convert Alma Analytics coverage statements into Docline HOLDING/RANGE rows.
+
+    Supports:
+      - Electronic portfolio coverage strings like:
+        "Available from 2003 volume: 4 issue: 1 until 2003 volume: 4 issue: 1"
+      - Physical/print holding statements like:
+        "v.111:no.1(1997:Feb. 01)-v.111:no.4(1997:Aug. 01); v.111:no.6(1997:Dec. 01)-..."
+        "Missing: v.21:no.2-3; v.2:no.1(1967:Mar.)-v.50:no.2(2015:Dec.)"
+    """
+
+    # -----------------------------
+    # PHYSICAL HOLDINGS HELPERS
+    # -----------------------------
+    def _extract_year(s):
+        if not s:
+            return None
+        s = str(s)
+
+        # Prefer year inside parentheses
+        m = re.search(r"\((\d{4})", s)
+        if m:
+            return m.group(1)
+
+        # Fallback: any standalone 4-digit year
+        m = re.search(r"\b(1[6-9]\d{2}|20\d{2})\b", s)
+        if m:
+            return m.group(1)
+
+        return None
 
 
+    def _looks_like_physical(statement):
+        if not statement:
+            return False
+        s = str(statement)
+        return (
+            "v." in s
+            or "Missing:" in s
+            or bool(re.search(r"\(\d{4}", s))
+        )
+
+
+    def _parse_physical_ranges(statement):
+        """
+        Converts statements like:
+        v.111:no.1(1997:Feb.)-v.116:no.6(2002:Dec.)
+        Missing: v.21:no.3; v.19:no.1(1999)-v.34:no.6(2006)
+        into:
+        [(1997,2002), (1999,2006)]
+        """
+
+        if not statement:
+            return []
+
+        segments = [s.strip() for s in re.split(r";\s*", statement) if s.strip()]
+        ranges = []
+
+        for seg in segments:
+            seg = re.sub(r"^\s*Missing:\s*", "", seg, flags=re.IGNORECASE)
+
+            if "-" in seg:
+                left, right = seg.split("-", 1)
+                begin_year = _extract_year(left)
+                end_year = _extract_year(right)
+
+                open_ended = seg.strip().endswith("-")
+                if open_ended:
+                    end_year = None
+
+                if begin_year:
+                    ranges.append((begin_year, end_year))
+            else:
+                y = _extract_year(seg)
+                if y:
+                    ranges.append((y, y))
+
+        # dedupe
+        return list(dict.fromkeys(ranges))
+    import itertools
 
     alma_nlm_merge_df = pd.DataFrame(columns=docline_df.columns)
+    alma_nlm_merge_df["Lifecycle"] = ""
 
-    alma_nlm_merge_df['Lifecycle'] = ""
+    # -----------------------------
+    # helpers
+    # -----------------------------
+    def _safe_int(val, default=0):
+        try:
+            if val is None:
+                return default
+            s = str(val).strip()
+            if s in ("", "None", "nan", "<NA>", "NaN"):
+                return default
+            s = s.replace("[", "").replace("]", "").strip()
+            return int(float(s))
+        except Exception:
+            return default
 
+    def _extract_year(s):
+        if s is None:
+            return None
+        s = str(s)
+        # Prefer year in parentheses: (2018:Jan.) or (2004)
+        m = re.search(r"\((\d{4})", s)
+        if m:
+            return m.group(1)
+        # Fallback: any 4-digit year token
+        m = re.search(r"\b(1[6-9]\d{2}|20\d{2})\b", s)
+        if m:
+            return m.group(1)
+        return None
 
+    def _looks_like_physical_statement(s):
+        if s is None:
+            return False
+        s = str(s)
+        return (
+            ("v." in s)
+            or ("Missing:" in s)
+            or ("missing:" in s.lower())
+            or bool(re.search(r"\(\d{4}", s))
+        )
 
+    def _parse_physical_ranges(statement):
+        """
+        Parse physical holdings statements into [(begin_year, end_year_or_None), ...]
+        - end_year None means open-ended (i.e., trailing '-')
+        """
+        if statement is None:
+            return []
 
-    merged_df['ISSN_x'] = merged_df['ISSN_x'].fillna("").astype(str)
+        # Normalize separators; split primarily on semicolons (most common delimiter)
+        raw = str(statement).strip()
+        if not raw:
+            return []
 
+        segments = [seg.strip() for seg in re.split(r";\s*", raw) if seg.strip()]
+        ranges = []
+
+        for seg in segments:
+            seg = re.sub(r"^\s*Missing:\s*", "", seg, flags=re.IGNORECASE).strip()
+            if not seg:
+                continue
+
+            # If there's a dash, treat as a range (start - end). Only split on first dash.
+            if "-" in seg:
+                left, right = seg.split("-", 1)
+                begin_year = _extract_year(left)
+                end_year = _extract_year(right)
+
+                open_ended = (right.strip() == "") or seg.strip().endswith("-")
+                if open_ended:
+                    end_year = None
+
+                if begin_year:
+                    ranges.append((begin_year, end_year))
+                continue
+
+            # No dash: treat as a single year (begin=end)
+            y = _extract_year(seg)
+            if y:
+                ranges.append((y, y))
+
+        # De-duplicate while preserving order
+        seen = set()
+        out = []
+        for by, ey in ranges:
+            key = (by, ey)
+            if key not in seen:
+                seen.add(key)
+                out.append((by, ey))
+        return out
+
+    def _compute_currently_received(holdings_format, coverage_combined):
+        """
+        Determine currently_received for HOLDING row.
+        - For electronic "from/until": current if any segment lacks "until"
+        - For physical statements: current if any segment is open-ended (trailing '-')
+        """
+        txt = "" if coverage_combined is None else str(coverage_combined)
+
+        if holdings_format == "Print" and _looks_like_physical_statement(txt):
+            # Open-ended if any segment ends with '-'
+            return "Yes" if re.search(r"-\s*(;|$)", txt) else "No"
+
+        # Electronic heuristic (existing behavior)
+        return "No" if re.search(r"\buntil\b", txt, flags=re.IGNORECASE) else "Yes"
+
+    # -----------------------------
+    # main loop
+    # -----------------------------
+    merged_df["ISSN_x"] = merged_df["ISSN_x"].fillna("").astype(str)
 
     x = 0
     for idx, row in merged_df.iterrows():
         if x % 500 == 0:
-            print(str(row['Title_x']) + "--" + str(row['ISSN_x']))
+            print(str(row["Title_x"]) + "--" + str(row["ISSN_x"]))
         x += 1
 
+        holdings_format = row["Electronic or Physical"]
+        if holdings_format == "Physical":
+            holdings_format = "Print"
+        if choice == "1" and holdings_format != "Physical":
+            cov_combined = row.get("Summary Holdings", "")  
+        elif choice == "2" and holdings_format != "Electronic":   
+            cov_combined = row.get("Coverage Information Combined", "")
+
+           
+        else:
+            raise ValueError("Invalid selection. Please enter 1, 2, or 3.")   
+            #return "Invalid choice or holdings format mismatch."
         main_row = {
-            'Bibliographic Lifecycle': row['Lifecycle'],
-            'action': '',
-            'record_type': 'HOLDING',
-            'libid': secrets_local.libid,
-            'serial_title': row['Title_x'],
-            'nlm_unique_id': row['NLM_Unique_ID'],
-            'holdings_format': row['Electronic or Physical'],
-            'begin_volume': None,
-            'end_volume': None,
-            'begin_year': '',
-            'end_year': '',
-            'issns': row['ISSN_x'].replace(';', ','),
-            'currently_received': 'No' if 'until' in str(row['Coverage Information Combined']) else 'Yes',
-            'retention_policy': secrets_local.retention_policy,
-            'limited_retention_period': secrets_local.limited_retention_period,
-            'embargo_period': 0,#embargo_period, #0 if choice == 1 elif row['Embargo Months']#secrets_local.embargo_period,
-            'limited_retention_type': secrets_local.limited_retention_type,
-            'has_epub_ahead_of_print': secrets_local.has_epub_ahead_of_print,
-            'has_supplements': secrets_local.has_supplements,
-            'ignore_warnings': secrets_local.ignore_warnings,
-            'last_modified': ''#pd.to_datetime('today').strftime('%Y-%b-%d')
+            "Bibliographic Lifecycle": row["Lifecycle"],
+            "action": "",
+            "record_type": "HOLDING",
+            "libid": secrets_local.libid,
+            "serial_title": row["Title_x"],
+            "nlm_unique_id": row["NLM_Unique_ID"],
+            "holdings_format": holdings_format,
+            "begin_volume": None,
+            "end_volume": None,
+            "begin_year": "",
+            "end_year": "",
+            "issns": row["ISSN_x"].replace(";", ","),
+            "currently_received": _compute_currently_received(holdings_format, cov_combined),
+            "retention_policy": secrets_local.retention_policy,
+            "limited_retention_period": secrets_local.limited_retention_period,
+            "embargo_period": 0,
+            "limited_retention_type": secrets_local.limited_retention_type,
+            "has_epub_ahead_of_print": secrets_local.has_epub_ahead_of_print,
+            "has_supplements": secrets_local.has_supplements,
+            "ignore_warnings": secrets_local.ignore_warnings,
+            "last_modified": "",
         }
         alma_nlm_merge_df = pd.concat([alma_nlm_merge_df, pd.DataFrame(main_row, index=[0])])
 
-        # Create additional HOLDING rows for coverage data
-        coverage_data = re.sub(r';{2,}', r';', row['Coverage Information Combined'])
-        coverage_data = str(coverage_data).split(';')
+        # -----------------------------
+        # coverage rows
+        # -----------------------------
+        coverage_data = re.sub(r";{2,}", ";", str(cov_combined))
+        coverage_entries = [c.strip() for c in coverage_data.split(";") if c.strip()]
 
-        embargo_months = str(row['Embargo Months']).split(',')
-
-
-        embargo_years = str(row['Embargo Years']).split(',')
-        # if x % 100 == 0:
-        #     print(str(row['Title_x']) + "--" + str(row['ISSN_x']))
-
-        x += 1
+        embargo_months = str(row.get("Embargo Months", "0")).split(",")
+        embargo_years = str(row.get("Embargo Years", "0")).split(",")
 
         coverage_data_output = []
-        for coverage, month, year in zip(coverage_data, embargo_months, embargo_years):
-            embargo_period = 0
+
+        for coverage, month_raw, year_raw in itertools.zip_longest(
+            coverage_entries, embargo_months, embargo_years, fillvalue="0"
+        ):
+            coverage = "" if coverage is None else str(coverage).strip()
+            if not coverage:
+                continue
+
+            month = _safe_int(month_raw, 0)
+            year = _safe_int(year_raw, 0)
+
+            if choice == "1":
+                embargo_period = 0
+            elif choice == "2":
+                embargo_period = month if month else (year * 12 if year else 0)
+            else:
+                embargo_period = 0
+
+            # -------------------------
+            # A) Electronic style: "from ... until ..."
+            # -------------------------
             begin_year = None
             end_year = None
             begin_volume = None
             end_volume = None
-            month = str(month).replace('[', '')
-            month = str(month).replace(']', '')
-            year = str(year).replace('[', '')
-            year = str(year).replace(']', '')
-            month = int(float(month))
-            year = int(float(year))
-            if choice == "1":
-                embargo_period = 0
-            elif choice == "2":
-                if month is not None:
 
-                    embargo_period = month
+            if re.search(r"\bfrom\b", coverage, flags=re.IGNORECASE):
+                if re.search(r"\buntil\b", coverage, flags=re.IGNORECASE):
+                    beginning = re.split(r"\bfrom\b", coverage, flags=re.IGNORECASE)[-1]
+                    beginning = re.split(r"\buntil\b", beginning, flags=re.IGNORECASE)[0].strip()
 
+                    begin_year = re.sub(r".*?(\d{4}).*$", r"\1", beginning)
 
-                elif year is not None:
-                    embargo_period = year * 12
+                    if re.search(r"\bvolume\b", beginning, flags=re.IGNORECASE):
+                        m = re.search(r"volume\:\s*(\d+)", beginning, flags=re.IGNORECASE)
+                        if m:
+                            begin_volume = m.group(1)
 
+                    end = re.split(r"\buntil\b", coverage, flags=re.IGNORECASE)[-1].strip()
+                    end_year = re.sub(r".*?(\d{4}).*$", r"\1", end)
 
+                else:
+                    beginning = re.split(r"\bfrom\b", coverage, flags=re.IGNORECASE)[-1].strip()
+                    begin_year = re.sub(r".*?(\d{4}).*$", r"\1", beginning)
 
+            # -------------------------
+            # B) Physical/print statements (volume/issue/date style)
+            # -------------------------
+            elif holdings_format == "Print" and _looks_like_physical_statement(coverage):
+                ranges = _parse_physical_ranges(coverage)
+                for by, ey in ranges:
+                    coverage_row = {
+                        "Bibliographic Lifecycle": row["Lifecycle"],
+                        "action": "",
+                        "record_type": "RANGE",
+                        "libid": secrets_local.libid,
+                        "serial_title": row["Title_x"],
+                        "nlm_unique_id": row["NLM_Unique_ID"],
+                        "holdings_format": holdings_format,
+                        "begin_volume": None,
+                        "end_volume": None,
+                        "begin_year": by,
+                        "end_year": ey,
+                        "issns": row["ISSN_x"].replace(";", ","),
+                        "currently_received": "Yes" if ey is None else "No",
+                        "retention_policy": secrets_local.retention_policy,
+                        "limited_retention_period": secrets_local.limited_retention_period,
+                        "embargo_period": embargo_period,
+                        "limited_retention_type": secrets_local.limited_retention_type,
+                        "has_epub_ahead_of_print": secrets_local.has_epub_ahead_of_print,
+                        "has_supplements": secrets_local.has_supplements,
+                        "ignore_warnings": secrets_local.ignore_warnings,
+                        "last_modified": "",
+                    }
+                    coverage_data_output.append(coverage_row)
+
+                continue
+
+            # -------------------------
+            # C) Fallback: if we can at least detect a year, treat as single-year range
+            # -------------------------
             else:
-                embargo_period = 0
+                y = _extract_year(coverage)
+                if y:
+                    begin_year = y
+                    end_year = y
 
-            if 'from' in coverage and 'until' in coverage:
-                beginning = coverage.split('from')[-1].split('until')[0].strip()#.split(r'[-\s \\]')[-1].strip()
+            if begin_year:
+                coverage_row = {
+                    "Bibliographic Lifecycle": row["Lifecycle"],
+                    "action": "",
+                    "record_type": "RANGE",
+                    "libid": secrets_local.libid,
+                    "serial_title": row["Title_x"],
+                    "nlm_unique_id": row["NLM_Unique_ID"],
+                    "holdings_format": holdings_format,
+                    "begin_volume": begin_volume,
+                    "end_volume": end_volume,
+                    "begin_year": begin_year,
+                    "end_year": end_year,
+                    "issns": row["ISSN_x"].replace(";", ","),
+                    "currently_received": "No"
+                    if re.search(r"\buntil\b", str(cov_combined), flags=re.IGNORECASE)
+                    else "Yes",
+                    "retention_policy": secrets_local.retention_policy,
+                    "limited_retention_period": secrets_local.limited_retention_period,
+                    "embargo_period": embargo_period,
+                    "limited_retention_type": secrets_local.limited_retention_type,
+                    "has_epub_ahead_of_print": secrets_local.has_epub_ahead_of_print,
+                    "has_supplements": secrets_local.has_supplements,
+                    "ignore_warnings": secrets_local.ignore_warnings,
+                    "last_modified": "",
+                }
+                coverage_data_output.append(coverage_row)
 
-                begin_year = re.sub(r'.*?(\d{4}).*$', r'\1', beginning)
-
-                if 'volume' in beginning:
-                    begin_volume = re.sub(r'    .*?volume\:\s+(\d+).*$', r'\1', beginning)
-
-
-                end = coverage.split('until')[-1]
-
-                end_year = re.sub(r'.*?(\d{4}).*$', r'\1', end)
-
-            elif 'from' in coverage:
-
-                beginning = coverage.split('from')[-1].strip()
-                begin_year = re.sub(r'.*?(\d{4}).*$', r'\1', beginning)
-
-
-
-            coverage_row = {
-                'Bibliographic Lifecycle': row['Lifecycle'],
-                'action': '',
-                'record_type': 'RANGE',
-                'libid': secrets_local.libid,
-                'serial_title': row['Title_x'],
-                'nlm_unique_id': row['NLM_Unique_ID'],
-                'holdings_format': row['Electronic or Physical'],
-                'begin_volume': None,
-                'end_volume': None,
-                'begin_year': begin_year,
-                'end_year': end_year,
-                'issns': row['ISSN_x'].replace(';', ','),
-                'currently_received': 'No' if 'until' in str(row['Coverage Information Combined']) else 'Yes',
-                'retention_policy': secrets_local.retention_policy,
-                'limited_retention_period': secrets_local.limited_retention_period,
-                'embargo_period': embargo_period,#secrets_local.embargo_period,
-                'limited_retention_type': secrets_local.limited_retention_type,
-                'has_epub_ahead_of_print': secrets_local.has_epub_ahead_of_print,
-                'has_supplements': secrets_local.has_supplements,
-                'ignore_warnings': secrets_local.ignore_warnings,
-                'last_modified': ''
-            }
-            coverage_data_output.append(coverage_row)
-
+        # De-duplicate RANGE rows (preserving order)
         updated_set = set()
         new_coverage_data_output = []
         for d in coverage_data_output:
-
             t = tuple(d.items())
             if t not in updated_set:
                 updated_set.add(t)
                 new_coverage_data_output.append(d)
 
-        coverage_data_output = [dict(t) for t in {tuple(d.items()) for d in coverage_data_output}]
-
         for output_row in new_coverage_data_output:
             alma_nlm_merge_df = pd.concat([alma_nlm_merge_df, pd.DataFrame(output_row, index=[0])])
 
     return alma_nlm_merge_df
+
 
 def propagate_nlm_unique_id_and_libid_values(df_d):
     columns_to_update = ['nlm_unique_id', 'serial_title', 'holdings_format', 'issns', 'currently_received', 'retention_policy',
@@ -532,9 +814,17 @@ def prepare(alma_nlm_merge_df, docline_df, print_or_electronic_choice):
         alma_nlm_merge_df = alma_nlm_merge_df[alma_nlm_merge_df['holdings_format'] == 'Electronic']
         existing_docline_df = existing_docline_df[existing_docline_df['holdings_format'] == 'Electronic']
     # Convert 'embargo_period' and 'limited_retention_period' to integers
-    existing_docline_df['embargo_period'] = existing_docline_df['embargo_period'].fillna(0).astype(int)
-    existing_docline_df['limited_retention_period'] = existing_docline_df['limited_retention_period'].fillna(0).astype(int)
+    existing_docline_df["embargo_period"] = (
+        pd.to_numeric(existing_docline_df["embargo_period"], errors="coerce")
+        .fillna(0)
+        .astype("Int64")
+    )
 
+    existing_docline_df["limited_retention_period"] = (
+        pd.to_numeric(existing_docline_df["limited_retention_period"], errors="coerce")
+        .fillna(0)
+        .astype("Int64")
+    )
     # Define path for the output CSV file
     output_file_path = 'Processing/Existing Docline Holdings.csv'
 
@@ -721,7 +1011,7 @@ def merge_intervals_optimized(df):
 
 
 
-def merge(alma_nlm_merge_df, existing_docline_df):
+def merge(alma_nlm_merge_df, existing_docline_df, choice):
     #####################################################
     #####################################################
     ####    This is the final merge: existing Docline
@@ -1391,18 +1681,18 @@ def merge(alma_nlm_merge_df, existing_docline_df):
 
 
 
-    full_match_output_df.to_csv('Output/Full Match Final.csv', index=False)
-    merged_updated_df.to_csv('Output/Update Final.csv', index=False)
-    #different_ranges_docline_output_df.to_csv('Output/Different Ranges Docline Final.csv', index=False)
-    different_ranges_alma_output_df.to_csv('Output/Different Ranges Alma Final.csv', index=False)
-    #
+    # full_match_output_df.to_csv('Output/Full Match Final.csv', index=False)
+    # merged_updated_df.to_csv('Output/Update Final.csv', index=False)
+    # #different_ranges_docline_output_df.to_csv('Output/Different Ranges Docline Final.csv', index=False)
+    # different_ranges_alma_output_df.to_csv('Output/Different Ranges Alma Final.csv', index=False)
+    # #
 
 
 
-    merged_updated_df = pd.read_csv('Output/Update Final.csv', engine="python")#dtype={'begin_year': 'Int64', 'end_year': 'Int64', 'begin_volume': 'Int64', 'end_volume': 'Int64', 'nlm_unique_id': 'str'}, engine="python")
-    full_match_output_df = pd.read_csv('Output/Full Match Final.csv', engine="python")#dtype={'begin_year': 'Int64', 'end_year': 'Int64', 'begin_volume': 'Int64', 'end_volume': 'Int64', 'nlm_unique_id': 'str'}, engine="python")
-    #different_ranges_alma_output_df = pd.read_csv('Output/Different Ranges Alma Final.csv', engine="python")#dtype={'begin_year': 'Int64', 'end_year': 'Int64', 'begin_volume': 'Int64', 'end_volume': 'Int64', 'nlm_unique_id': 'str'}, engine="python")
-    merged_updated_df[['begin_year', 'end_year', 'begin_volume', 'end_volume']] = merged_updated_df[['begin_year', 'end_year', 'begin_volume', 'end_volume']].astype('Int64')
+    # merged_updated_df = pd.read_csv('Output/Update Final.csv', engine="python")#dtype={'begin_year': 'Int64', 'end_year': 'Int64', 'begin_volume': 'Int64', 'end_volume': 'Int64', 'nlm_unique_id': 'str'}, engine="python")
+    # full_match_output_df = pd.read_csv('Output/Full Match Final.csv', engine="python")#dtype={'begin_year': 'Int64', 'end_year': 'Int64', 'begin_volume': 'Int64', 'end_volume': 'Int64', 'nlm_unique_id': 'str'}, engine="python")
+    # #different_ranges_alma_output_df = pd.read_csv('Output/Different Ranges Alma Final.csv', engine="python")#dtype={'begin_year': 'Int64', 'end_year': 'Int64', 'begin_volume': 'Int64', 'end_volume': 'Int64', 'nlm_unique_id': 'str'}, engine="python")
+    # merged_updated_df[['begin_year', 'end_year', 'begin_volume', 'end_volume']] = merged_updated_df[['begin_year', 'end_year', 'begin_volume', 'end_volume']].astype('Int64')
 
     #merged_updated_df.loc[(merged_updated_df['record_type'] == 'RANGE') & (merged_updated_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_period', 'limited_retention_type', 'embargo_period', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = ""
     cols_to_convert = ['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']
@@ -1421,16 +1711,20 @@ def merge(alma_nlm_merge_df, existing_docline_df):
 
 
 
-    merged_updated_df.loc[(merged_updated_df['record_type'] == 'RANGE') & (merged_updated_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = np.nan
-    #full_match_output_df.loc[(merged_updated_df['record_type'] == 'RANGE') & (merged_updated_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = ""
-    different_ranges_alma_output_df.loc[(merged_updated_df['record_type'] == 'RANGE') & (merged_updated_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = np.nan
-
-    full_match_output_df.to_csv('Output/Full Match Final.csv', index=False)
-    merged_updated_df.to_csv('Output/Update Final.csv', index=False)
+    mask = (different_ranges_alma_output_df["record_type"] == "RANGE") & (different_ranges_alma_output_df["action"] == "ADD")
+    cols = ["serial_title","nlm_unique_id","holdings_format","issns","currently_received","retention_policy",
+            "limited_retention_type","has_epub_ahead_of_print","has_supplements","ignore_warnings","last_modified"]
+    different_ranges_alma_output_df.loc[mask, cols] = np.nan    #full_match_output_df.loc[(merged_updated_df['record_type'] == 'RANGE') & (merged_updated_df['action'] == 'ADD'), ['serial_title', 'nlm_unique_id', 'holdings_format', 'issns', 'currently_received', 'retention_policy', 'limited_retention_type', 'has_epub_ahead_of_print', 'has_supplements', 'ignore_warnings', 'last_modified']] = ""
+    mask = (different_ranges_alma_output_df["record_type"] == "RANGE") & (different_ranges_alma_output_df["action"] == "ADD")
+    cols = ["serial_title","nlm_unique_id","holdings_format","issns","currently_received","retention_policy",
+            "limited_retention_type","has_epub_ahead_of_print","has_supplements","ignore_warnings","last_modified"]
+    different_ranges_alma_output_df.loc[mask, cols] = np.nan
+    # full_match_output_df.to_csv('Output/Full Match Final.csv', index=False)
+    # merged_updated_df.to_csv('Output/Update Final.csv', index=False)
     
-    #different_ranges_docline_output_df.to_csv('Output/Different Ranges Docline Final.csv', index=False)
-    different_ranges_alma_output_df.to_csv('Output/Different Ranges Alma Final.csv', index=False)
-    #
+    # #different_ranges_docline_output_df.to_csv('Output/Different Ranges Docline Final.csv', index=False)
+    # different_ranges_alma_output_df.to_csv('Output/Different Ranges Alma Final.csv', index=False)
+    # #
     #full_match_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']] = full_match_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']].astype('Int64')
     #different_ranges_alma_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']] = different_ranges_alma_output_df[['begin_year', 'end_year', 'begin_volume', 'end_volume', 'embargo_period', 'limited_retention_period']].astype('Int64')
 
@@ -1506,46 +1800,92 @@ def merge(alma_nlm_merge_df, existing_docline_df):
 
         error_out.to_csv("Output/Error Final.csv", index=False)
 
+    if choice == "Electronic":
     # Core CSV outputs
-    add_df.to_csv("Output/Add Final.csv", index=False)
-    full_match_output_df.to_csv("Output/Full Match Final.csv", index=False)
-    merged_updated_df.to_csv("Output/Update Final.csv", index=False)
-    different_ranges_docline_output_df.to_csv("Output/Different Ranges Docline Final.csv", index=False)
-    different_ranges_alma_output_df.to_csv("Output/Different Ranges Alma Final.csv", index=False)
+        add_df.to_csv("Output/Electronic Add Final.csv", index=False)
+        full_match_output_df.to_csv("Output/Electronic Full Match Final.csv", index=False)
+        merged_updated_df.to_csv("Output/Electronic Update Final.csv", index=False)
+        different_ranges_docline_output_df.to_csv("Output/Electronic Different Ranges Docline Final.csv", index=False)
+        different_ranges_alma_output_df.to_csv("Output/Electronic Different Ranges Alma Final.csv", index=False)
 
-    # Deleted output (this file existed earlier in the workflow; always overwrite here)
-    deleted_output_df.to_csv(
-        "Output/Delete Final - Either Withdrawn from Alma or ILL Not Allowed for E-Resources.csv",
-        index=False,
-    )
+        # Deleted output (this file existed earlier in the workflow; always overwrite here)
+        deleted_output_df.to_csv(
+            "Output/Electronic Delete Final - Either Withdrawn from Alma or ILL Not Allowed for E-Resources.csv",
+            index=False,
+        )
 
-    # Preserve list + counts
-    in_docline_only_preserve_df = in_docline_only_preserve_df.reset_index(drop=True)
-    counts_df = pd.concat(
-        [
-            counts_df,
-            pd.DataFrame(
-                {
-                    "Set": "In Docline Only Keep",
-                    "Number of Rows": len(in_docline_only_preserve_df),
-                    "Number of NLM Unique IDs": len(pd.unique(in_docline_only_preserve_df["nlm_unique_id"])),
-                },
-                index=[0],
-            ),
-        ],
-        ignore_index=True,
-    )
-    in_docline_only_preserve_df.to_csv("Output/In Docline Only Preserve Final.csv", index=False)
+        # Preserve list + counts
+        in_docline_only_preserve_df = in_docline_only_preserve_df.reset_index(drop=True)
+        counts_df = pd.concat(
+            [
+                counts_df,
+                pd.DataFrame(
+                    {
+                        "Set": "In Docline Only Keep",
+                        "Number of Rows": len(in_docline_only_preserve_df),
+                        "Number of NLM Unique IDs": len(pd.unique(in_docline_only_preserve_df["nlm_unique_id"])),
+                    },
+                    index=[0],
+                ),
+            ],
+            ignore_index=True,
+        )
+        in_docline_only_preserve_df.to_csv("Output/Electronic In Docline Only Preserve Final.csv", index=False)
 
-    # No-dates output (real XLSX)
-    try:
-        with pd.ExcelWriter("Output/No Dates in Update Table.xlsx", engine="openpyxl") as xw:
-            no_dates_df.to_excel(xw, sheet_name="No Dates", index=False)
-    except Exception as e:
-        # Fallback: write CSV next to it if Excel output fails for any reason
-        no_dates_df.to_csv("Output/No Dates in Update Table.csv", index=False)
-        print(f"WARNING: could not write No Dates XLSX ({e}); wrote CSV instead.")
+        # No-dates output (real XLSX)
+        try:
+            with pd.ExcelWriter("Output/No Dates in Update Table.xlsx", engine="openpyxl") as xw:
+                no_dates_df.to_excel(xw, sheet_name="No Dates", index=False)
+        except Exception as e:
+            # Fallback: write CSV next to it if Excel output fails for any reason
+            no_dates_df.to_csv("Output/No Dates in Update Table.csv", index=False)
+            print(f"WARNING: could not write No Dates XLSX ({e}); wrote CSV instead.")
 
-    # Counts
-    counts_df.to_excel("Output/Counts.xlsx", index=False)
+        # Counts
+        counts_df.to_excel("Output/Electronic Counts.xlsx", index=False)
+
+    if choice == "Print":
+        # Core CSV outputs
+        add_df.to_csv("Output/Print Add Final.csv", index=False)
+        full_match_output_df.to_csv("Output/Print Full Match Final.csv", index=False)
+        merged_updated_df.to_csv("Output/Print Update Final.csv", index=False)
+        different_ranges_docline_output_df.to_csv("Output/Print Different Ranges Docline Final.csv", index=False)
+        different_ranges_alma_output_df.to_csv("Output/Electronic Different Ranges Alma Final.csv", index=False)
+
+        # Deleted output (this file existed earlier in the workflow; always overwrite here)
+        deleted_output_df.to_csv(
+            "Output/Print Delete Final - Either Withdrawn from Alma or ILL Not Allowed for E-Resources.csv",
+            index=False,
+        )
+
+        # Preserve list + counts
+        in_docline_only_preserve_df = in_docline_only_preserve_df.reset_index(drop=True)
+        counts_df = pd.concat(
+            [
+                counts_df,
+                pd.DataFrame(
+                    {
+                        "Set": "In Docline Only Keep",
+                        "Number of Rows": len(in_docline_only_preserve_df),
+                        "Number of NLM Unique IDs": len(pd.unique(in_docline_only_preserve_df["nlm_unique_id"])),
+                    },
+                    index=[0],
+                ),
+            ],
+            ignore_index=True,
+        )
+        in_docline_only_preserve_df.to_csv("Output/Print In Docline Only Preserve Final.csv", index=False)
+
+        # No-dates output (real XLSX)
+        try:
+            with pd.ExcelWriter("Output/No Dates in Update Table.xlsx", engine="openpyxl") as xw:
+                no_dates_df.to_excel(xw, sheet_name="No Dates", index=False)
+        except Exception as e:
+            # Fallback: write CSV next to it if Excel output fails for any reason
+            no_dates_df.to_csv("Output/No Dates in Update Table.csv", index=False)
+            print(f"WARNING: could not write No Dates XLSX ({e}); wrote CSV instead.")
+
+        # Counts
+        counts_df.to_excel("Output/Print Counts.xlsx", index=False)
+
 
