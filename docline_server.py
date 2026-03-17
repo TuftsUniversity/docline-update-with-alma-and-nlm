@@ -46,16 +46,16 @@ if not os.path.isdir(aDir) or not os.path.exists(aDir):
 
 #nlm_choice = input("Do you want to have the program ingest the latest NLM from the web, or do you have a local copy in the 'NLM' folder you would like it to use?  Type the number next to your choice.\n\t1-Retrive for me\n\t2-I have a local copy\n\t3-I've processed it already and it's in Processing/journal_data.csv\nChoice:")
 
-nlm_choice = sys.argv[1]
+nlm_choice = int(sys.argv[1])
 #input("Download your local version of the Analytics all journals in the format at \"/shared/Community/Reports/Institutions/Tufts University\".  Put this in the \"Analytics/\" folder in this directory.\nPress any key to continue")
 
 #analytics_choice = input("Do you want to have the program ingest the your journal data from Analytics, or do you have a local copy in the 'Analytics' folder you would like it to use?  Note that you'll have to put the path in your secrets_local file if 1.  \nType the number next to your choice.\n\t1-Retrive for me\n\t2-I have a local copy\nChoice:")
 #print_or_electronic_choice = input("Do you want to parse/compare print, electronic, or both?\n\t1-Print\n\t2-Electronic\nChoice:")
 
-print_or_electronic_choice = sys.argv[2]
+print_or_electronic_choice = int(sys.argv[2])
 
 nlm_choice = str(nlm_choice)
-print_or_electronic_choice = str(print_or_electronic_choice)
+print_or_electronic_choice = print_or_electronic_choice
 
 
 #input("The Docline file will be retrieved from the \"Docline\" folder in this directory.   Retrieve this from your Docline institutional account\nPress any key to continue")
@@ -90,12 +90,15 @@ return_list = prepare(alma_nlm_merge_df, docline_df, print_or_electronic_choice)
 alma_nlm_merge_df = return_list[0]
 existing_docline_df = return_list[1]
 
-if print_or_electronic_choice == "1":
-    print_or_electronic_choice = "Print"
-elif print_or_electronic_choice == "2":
-    print_or_electronic_choice = "Electronic"
-merge(alma_nlm_merge_df, existing_docline_df, print_or_electronic_choice)
-
+if print_or_electronic_choice == 1:
+    poe_label = "Print"
+elif print_or_electronic_choice == 2:
+    poe_label = "Electronic"
+elif print_or_electronic_choice == 3:
+    poe_label = "Both"
+else:
+    raise ValueError("Unexpected print_or_electronic_choice")
+merge(alma_nlm_merge_df, existing_docline_df, poe_label)
 print("Execution time:\t")
 print(datetime.now() - startTime)
 sys.exit()

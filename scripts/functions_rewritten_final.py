@@ -387,6 +387,9 @@ def convert(merged_df, docline_df, choice):
         "Missing: v.21:no.2-3; v.2:no.1(1967:Mar.)-v.50:no.2(2015:Dec.)"
     """
 
+    choice = int(choice)
+
+    selection = choice  # backward compatibility for code paths still using 'selection'
     # -----------------------------
     # PHYSICAL HOLDINGS HELPERS
     # -----------------------------
@@ -550,6 +553,43 @@ def convert(merged_df, docline_df, choice):
                 out.append((by, ey))
         return out
 
+
+
+    # holdings_format = str(holdings_format).strip().title()
+
+    
+
+    # if holdings_format in ("Print", "Physical", "P"):
+
+    #     holdings_format = "Physical"
+
+    # elif "elect" in holdings_format.lower():
+
+    #     holdings_format = "Electronic"
+
+    #     holdings_format = str(holdings_format).strip().title()
+
+        
+
+    # if holdings_format in ("Print", "Physical", "P"):
+
+    #     holdings_format = "Physical"
+
+    # elif "elect" in holdings_format.lower():
+
+    #     holdings_format = "Electronic"
+    #     if holdings_format == "Print" and _looks_like_physical_statement(txt):
+    #         # Open-ended if any segment ends with '-'
+    #         return "Yes" if re.search(r"-\s*(;|$)", txt) else "No"
+
+    #     # Electronic heuristic (existing behavior)
+    #     return "No" if re.search(r"\buntil\b", txt, flags=re.IGNORECASE) else "Yes"
+
+    # -----------------------------
+    # main loop
+    # -----------------------------
+    merged_df["ISSN_x"] = merged_df["ISSN_x"].fillna("").astype(str)
+
     def _compute_currently_received(holdings_format, coverage_combined):
         """
         Determine currently_received for HOLDING row.
@@ -563,30 +603,49 @@ def convert(merged_df, docline_df, choice):
             return "Yes" if re.search(r"-\s*(;|$)", txt) else "No"
 
         # Electronic heuristic (existing behavior)
-        return "No" if re.search(r"\buntil\b", txt, flags=re.IGNORECASE) else "Yes"
-
-    # -----------------------------
-    # main loop
-    # -----------------------------
-    merged_df["ISSN_x"] = merged_df["ISSN_x"].fillna("").astype(str)
-
+        else:
+            return "No" if re.search(r"\buntil\b", txt, flags=re.IGNORECASE) else "Yes"
+                
     x = 0
     for idx, row in merged_df.iterrows():
         if x % 500 == 0:
             print(str(row["Title_x"]) + "--" + str(row["ISSN_x"]))
         x += 1
 
+        holdings_format = (
+
+        row.get("Holdings Format")
+
+        or row.get("holdings_format")
+
+        or row.get("Format")
+
+        or row.get("format")
+
+        or row.get("Holding Type")
+
+        or row.get("Portfolio type")
+
+        or ""
+
+    )
+
         holdings_format = row["Electronic or Physical"]
         if holdings_format == "Physical":
             holdings_format = "Print"
-        if choice == "1" and holdings_format != "Physical":
-            cov_combined = row.get("Summary Holdings", "")  
-        elif choice == "2" and holdings_format != "Electronic":   
+        if choice == 1 and holdings_format == "Physical":
+
+            cov_combined = row.get("Summary Holdings", "")
+
+        elif choice == 2 and holdings_format == "Electronic":
+
             cov_combined = row.get("Coverage Information Combined", "")
 
-           
         else:
             raise ValueError("Invalid selection. Please enter 1, 2, or 3.")   
+            
+
+            
             #return "Invalid choice or holdings format mismatch."
         main_row = {
             "Bibliographic Lifecycle": row["Lifecycle"],
